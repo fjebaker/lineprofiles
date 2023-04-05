@@ -1,0 +1,10 @@
+.{
+    .name = "memis",
+    .version = "0.0.1",
+    .dependencies = .{
+        .zfits = .{
+            .url = "https://github.com/fjebaker/zigFITSIO/archive/17b61da216b5a2f53f16048d071c6f66804c0c11.tar.gz",
+            .hash = "1220c8c6481b1e8a63b8dcda595be89fc83299ecbf6622387b47cb59f6f5c1cc529f",
+        }
+    }
+}
