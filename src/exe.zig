@@ -4,7 +4,7 @@ const io = @import("io.zig");
 const xfunc = @import("transfer-functions.zig");
 const util = @import("utils.zig");
 
-const CHOICE = 49;
+const CHOICE = 52;
 const NUM_FMT = "{d: <8.6}\t";
 
 pub fn printPlot(
@@ -39,19 +39,21 @@ pub fn printPlot(
 }
 
 pub fn interpolation_test(allocator: std.mem.Allocator) !void {
+    std.debug.print("Starting read...\n", .{});
     var data = try io.readFitsFile("../relline/rel_table.fits", allocator);
     defer data.deinit();
+    std.debug.print("Done.\n", .{});
 
-    var params = [2]f32{ -8.8e-04, 0.276 };
+    var params = [2]f32{ 0.99, 0.421 };
     var itf = data.interpolate_parameters(params);
-    // data.interpolated_cache[0].assignFrom(&data.transfer_functions[229]);
+    // data.interpolated_cache[0].assignFrom(&data.transfer_functions[428]);
     // var itf = data.interpolated_transfer_function;
-    itf.stage_radius(1.311e1);
+    itf.stage_radius(4.616);
 
     try printPlot(
         f32,
         &[_]*const xfunc.TransferFunction(f32){
-            &data.transfer_functions[229],
+            &data.transfer_functions[428],
         },
         &[_]*const xfunc.InterpolatingTransferFunction(f32){
             &itf,

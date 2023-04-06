@@ -137,21 +137,21 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
                     self.interpolate(
                         &self.transfer_functions[table_indices[0]],
                         &self.transfer_functions[table_indices[1]],
-                        weights[0],
+                        weights[1],
                         0,
                     );
                     // then (p1,q0) to (p1,q1)
                     self.interpolate(
                         &self.transfer_functions[table_indices[2]],
                         &self.transfer_functions[table_indices[3]],
-                        weights[0],
+                        weights[1],
                         1,
                     );
                     // and then between those two
                     self.interpolate(
                         &self.interpolated_cache[0],
                         &self.interpolated_cache[1],
-                        weights[1],
+                        weights[0],
                         0,
                     );
                 },
