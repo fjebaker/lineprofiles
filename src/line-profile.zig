@@ -1,139 +1,14 @@
 const std = @import("std");
+const xfunc = @import("transfer-functions.zig");
+const util = @import("utils.zig");
 
-pub fn TransferFunction(comptime T: type) type {
-    return struct {
-        const Self = @This();
-        // we will store [r][g*] -> f, since we will be accessing
-        // over the latter more often, thus needs to be contiguous
-        upper_branch: [][]T,
-        lower_branch: [][]T,
-        gmin: T,
-        gmax: T,
-        pub fn free(self: *Self, alloctor: std.mem.Allocator) void {
-            for (self.upper_branch) |ptr| {
-                alloctor.free(ptr);
-            }
-            alloctor.free(self.upper_branch);
-            for (self.lower_branch) |ptr| {
-                alloctor.free(ptr);
-            }
-            alloctor.free(self.lower_branch);
-        }
-    };
-}
-
-fn ValueIndex(comptime T: type) type {
-    return struct { index: usize, value: T };
-}
-
-fn find_first_geq(comptime T: type, haystack: []T, item: T, start: usize) ?ValueIndex(T) {
-    for (haystack[start..], start..) |t, i| {
-        if (t >= item) return i;
-    }
-    return null;
-}
-
-const InterpolationError = error{IdenticalDomain};
-
-fn linear_interpolation(comptime T: type, x: T, x0: T, x1: T, y0: T, y1: T) InterpolationError!T {
-    if (x0 == x1) return .IdenticalDomain;
-    const factor = (y1 - y0) / (x1 - x0);
-    return (x - x0) * factor + y0;
-}
-
-fn InterpolatingTransferFunction(comptime T: type) type {
-    return struct {
-        const Self = @This();
-        tf: TransferFunction(T),
-        // cache of the current row of the data
-        // into which we write the interpolations
-        cache_upper: []T,
-        cache_lower: []T,
-        // we don't own these, they are referenced from
-        // the parent
-        radii: []T,
-        gstars: []T,
-        // store the last high indices for cached searches
-        last_r_index: usize,
-        last_g_index: usize,
-
-        fn stage_index(self: *Self, index: usize) void {
-            for (self.cache_lower, 0..) |*g, i| g.* = self.tf.lower_branch[index][i];
-            for (self.cache_upper, 0..) |*g, i| g.* = self.tf.upper_branch[index][i];
-        }
-
-        pub fn stage_radius(self: *Self, r: T) void {
-            const start = if (r >= self.radii[self.last_r_index]) self.last_r_index else 0;
-            const loc = find_first_geq(T, self.radii, r, start) orelse {
-                // stage the greatest possible radius
-                self.stage_index(self.radii.len - 1);
-                self.last_r_index = self.radii.len - 1;
-                return;
-            };
-            const ilow = if (loc.index > 1) loc.index - 1 else {
-                // stage the minimal possible radius
-                self.stage_index(0);
-                self.last_r_index = 0;
-                return;
-            };
-
-            // interpolant factor: since everything is for the same radius
-            // we build it as (r - r0) / (r1 - r0) to then be multiplied by (f1 - f0)
-            const r0 = self.radii[ilow];
-            const factor = (r - r0) / (loc.value - r0);
-            self.stage_interpolated(loc.index, factor);
-            self.last_r_index = loc.index;
-        }
-
-        fn stage_interpolated(self: *Self, index: usize, factor: T) void {
-            for (self.cache_lower, 0..) |*f, i| {
-                const f0 = self.tf.lower_branch[index - 1][i];
-                f.* = (self.tf.lower_branch[index][i] - f0) * factor + f0;
-            }
-            for (self.cache_upper, 0..) |*f, i| {
-                const f0 = self.tf.upper_branch[index - 1][i];
-                f.* = (self.tf.upper_branch[index][i] - f0) * factor + f0;
-            }
-        }
-
-        inline fn get_gstar_interpolating_factor(self: *const Self, gstar: T) ?ValueIndex(T) {
-            const start = if (gstar >= self.gstars[self.last_g_index]) self.last_g_index else 0;
-            // should not be possible for gstar to not be in [0,1]
-            const loc = find_first_geq(T, self.gstars, gstar, start) catch unreachable;
-            const ilow = if (loc.index > 1) loc.index - 1 else return null;
-            const g0 = self.gstars[ilow];
-            // interpolant factor
-            const factor = (gstar - g0) / (self.gstars[loc.index] - g0);
-            self.last_g_index = loc.index;
-            return .{ .index = loc.index, .value = factor };
-        }
-
-        pub fn branches_at_gstar(self: *const Self, gstar: T) struct { lower: T, upper: T } {
-            const loc = self.get_gstar_interpolating_factor(gstar) orelse {
-                return .{ .lower = self.cache_lower[0], .upper = self.cache_upper[0] };
-            };
-            // interpolate lower branch
-            const f0lower = self.cache_lower[loc.index - 1];
-            const lower = loc.factor * (self.cache_lower[loc.index] - f0lower) + f0lower;
-            // interpolate upper branch
-            const f0upper = self.cache_upper[loc.index - 1];
-            const upper = loc.factor * (self.cache_upper[loc.index] - f0upper) + f0upper;
-            return .{ .lower = lower, .upper = upper };
-        }
-
-        pub fn free(self: *Self, allocator: std.mem.Allocator) void {
-            self.tf.free(allocator);
-            allocator.free(self.cache_lower);
-            allocator.free(self.cache_upper);
-        }
-    };
-}
+const InterpolatingTransferFunction = xfunc.InterpolatingTransferFunction;
 
 /// keeps all of the read in data in a structure
-fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
+pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
     return struct {
         const Self = @This();
-        const TFunc = TransferFunction(T);
+        const TFunc = xfunc.TransferFunction(T);
 
         allocator: std.mem.Allocator,
         // the transfer function data maps g* -> f for different radii
@@ -147,19 +22,20 @@ fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
         transfer_functions: []TFunc,
         // we store one array for each parameter with all of its values
         parameters: [NParams][]T,
+        n_parameters: [NParams]usize,
 
         // since the transfer function could be laid out in memory in an
         // inconvenient way, we do all of the interpolations first,
         // and then return a `TranferFunction`, storing indexes to the
         // frames that were used to generate the table, since it is likely
         // we'll just have to reinterpoalte, and can save the parameter lookup.
-        last_upper_frame: [2 * NParams]usize = .{0 ** (2 * NParams)},
-        last_lower_frame: [2 * NParams]usize = .{0 ** (2 * NParams)},
+        last_upper_frame: [2 * NParams]usize = .{0} ** (2 * NParams),
+        last_lower_frame: [2 * NParams]usize = .{0} ** (2 * NParams),
         // that does also mean we store the parameters which strided the last used
         // frames, such that the needed parameters P are
         //       last_upper_parameters >= P >= last_lower_parameters
         // which means we need 2 frames pointers for each parameter
-        last_lower_parameters: [NParams]usize = .{0 ** NParams},
+        last_lower_parameters: [NParams]usize = .{0} ** NParams,
         // last_upper_parameters is implied as last_lower_parameters[i] + 1
 
         // then, when we receive some new parameters, we can optimize the search for
@@ -169,15 +45,174 @@ fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
         // dont want to have to allocate new memory each time, so we keep one frame special
         // into which we write the new interpolation and return a copy which does not need
         // to be freed (since we own the memory)
-        interpolated_cache: InterpolatingTransferFunction(T),
+        interpolated_cache: [NParams]xfunc.TransferFunction(T),
+        interpolated_transfer_function: InterpolatingTransferFunction(T),
 
+        /// Conver the indices of the parameters to an index that may be used
+        /// to fetch the corresponding transfer function from `self.transfer_functions`
+        /// For parameters p,q, it assumes the table is laid out as
+        ///   (p1, q1), (p1, q2), ... (p1, qn), (p2, q1), (p2, q2), ...
+        fn parameter_indices_to_table_index(self: *const Self, param_indices: [NParams]usize) usize {
+            var index: usize = 0;
+            for (0..NParams - 1) |i| {
+                const stride = util.product(usize, self.n_parameters[i + 1 ..]);
+                index += param_indices[i] * stride;
+            }
+            return index;
+        }
+
+        /// Multi-linear interpolation of the parameters. Interpolates first in
+        /// q and then in p (in 2d):
+        ///
+        /// (p1,q0)      (p1,q1)
+        ///    \      B  /
+        ///     x ----+ x
+        ///     ^       |
+        ///     |     c |  <- new chosen parameters
+        ///     |       |
+        ///     x ----+ x
+        ///    /      A  \
+        /// (p0,q0)    (p0,q1)
+        ///  base
+        ///
+        /// The interpolation over some value y is then
+        ///   k = (q1 - q0)
+        ///   A = (y(p0, q1) - y(p0, q0)) / k
+        ///   B = (y(p1, q1) - y(p1, q0)) / k
+        ///   y(c) = A + (B - A) / (p1 - p0)
+        ///
+        /// The extension to higher dimensions is hopefully apparent.
         pub fn interpolate_parameters(
             self: *Self,
             parameters: [NParams]T,
-        ) TFunc {
-            _ = parameters;
+        ) InterpolatingTransferFunction(T) {
+            //
+            var base_indices: [NParams]usize = undefined;
+            for (0..NParams) |i| {
+                const last_i = self.last_lower_parameters[i];
+                // todo: parameters are probably going to be pretty close to eachother
+                // so might be better to switch the direction of search given the last
+                // one, instead of looping back to 0 if it's less than
+                const search_up = parameters[i] >= self.parameters[i][last_i];
+                const start = if (search_up) last_i else 0;
+                const new_i = util.find_first_geq(
+                    T,
+                    self.parameters[i],
+                    parameters[i],
+                    start,
+                );
+                base_indices[i] = if (new_i) |vi| vi.index else 0;
+            }
 
-            return self.interpolated_cache;
+            // find which tables we are interpolating between
+            const table_indices = self.find_tables(base_indices);
+
+            // now that we know which tables we want to interpolate over
+            // we just need to know the weights
+            var weights: [NParams]?T = undefined;
+            for (0..NParams) |i| {
+                weights[i] = self.determine_parameter_weight(
+                    &parameters,
+                    i,
+                    base_indices[i],
+                );
+            }
+
+            // then interpolate
+            // do a few base cases by hand
+            switch (NParams) {
+                // simple linear case
+                1 => {
+                    self.interpolate(
+                        &self.transfer_functions[table_indices[0]],
+                        &self.transfer_functions[table_indices[1]],
+                        weights[0],
+                        0,
+                    );
+                },
+                // slightly more complex bi-linear case
+                2 => {
+                    // first (p0,q0) to (p0,q1)
+                    self.interpolate(
+                        &self.transfer_functions[table_indices[0]],
+                        &self.transfer_functions[table_indices[1]],
+                        weights[0],
+                        0,
+                    );
+                    // then (p1,q0) to (p1,q1)
+                    self.interpolate(
+                        &self.transfer_functions[table_indices[2]],
+                        &self.transfer_functions[table_indices[3]],
+                        weights[0],
+                        1,
+                    );
+                    // and then between those two
+                    self.interpolate(
+                        &self.interpolated_cache[0],
+                        &self.interpolated_cache[1],
+                        weights[1],
+                        0,
+                    );
+                },
+                // too complex for now tri-linear and above case
+                else => @panic("Not implemented yet."),
+            }
+            return self.interpolated_transfer_function;
+        }
+
+        fn interpolate(
+            self: *Self,
+            from: *const xfunc.TransferFunction(T),
+            to: *const xfunc.TransferFunction(T),
+            weight: ?T,
+            cache_index: usize,
+        ) void {
+            if (weight) |w| {
+                from.interpolateBetween(
+                    to,
+                    &self.interpolated_cache[cache_index],
+                    w,
+                );
+            } else {
+                self.interpolated_cache[cache_index].assignFrom(from);
+            }
+        }
+
+        fn determine_parameter_weight(self: *const Self, parameters: []const T, parameter_index: usize, index: usize) ?T {
+            // no interpolation needs to happen here
+            if (index == 0) return null;
+            const p0 = self.parameters[parameter_index][index - 1];
+            const p1 = self.parameters[parameter_index][index];
+            return (parameters[parameter_index] - p0) / (p1 - p0);
+        }
+
+        fn find_tables(
+            self: *const Self,
+            parameter_indices: [NParams]usize,
+        ) [NParams * 2]usize {
+            var pindices: [NParams]usize = undefined;
+            std.mem.copy(usize, &pindices, &parameter_indices);
+            var table_indices: [NParams * 2]usize = undefined;
+            for (0..NParams) |i| {
+                const saved_index = pindices[i];
+                const j = i * 2;
+                const to_indices =
+                    self.parameter_indices_to_table_index(pindices);
+                if (saved_index > 1) {
+                    // frame above chosen
+                    table_indices[j + 1] = to_indices;
+                    pindices[i] -= 1;
+                    // frame below chosen
+                    table_indices[j] =
+                        self.parameter_indices_to_table_index(pindices);
+                    // restore for the next loop
+                    pindices[i] = saved_index;
+                } else {
+                    table_indices[j] = to_indices;
+                    table_indices[j + 1] = to_indices;
+                }
+            }
+            return table_indices;
         }
 
         pub fn init(
@@ -186,13 +221,37 @@ fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
             radii: []T,
             transfer_functions: []TFunc,
             parameters: [NParams][]T,
-        ) Self {
+        ) !Self {
+            // create the cache
+            var cache: [NParams]xfunc.TransferFunction(T) = undefined;
+            errdefer for (&cache) |*tf| tf.free(alloc);
+            for (0..NParams) |i| {
+                cache[i] = try transfer_functions[0].copy(alloc);
+            }
+            // make a single interpolated transfer function regardless of
+            // NParams
+            var itf = try InterpolatingTransferFunction(T).init(
+                radii,
+                gstars,
+                alloc,
+                &cache[0],
+            );
+
+            // count how many of each parameter we have
+            var n_params: [NParams]usize = undefined;
+            for (0..NParams) |i| {
+                n_params[i] = parameters[i].len;
+            }
+
             return .{
-                .alloctor = alloc,
+                .allocator = alloc,
                 .gstars = gstars,
                 .radii = radii,
                 .transfer_functions = transfer_functions,
                 .parameters = parameters,
+                .n_parameters = n_params,
+                .interpolated_cache = cache,
+                .interpolated_transfer_function = itf,
             };
         }
 
@@ -201,7 +260,7 @@ fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
             self.allocator.free(self.gstars);
             self.allocator.free(self.radii);
             // free the parameter arrays
-            for (self.parameters) |*p| {
+            for (self.parameters) |p| {
                 self.allocator.free(p);
             }
             // free the transfer functions
@@ -210,7 +269,8 @@ fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
             }
             self.allocator.free(self.transfer_functions);
             // free the interpolant cache
-            self.interpolated_cache.free(self.alloctor);
+            self.interpolated_transfer_function.free(self.allocator);
+            for (&self.interpolated_cache) |*tf| tf.free(self.allocator);
         }
     };
 }
@@ -244,7 +304,7 @@ fn Integrator(comptime T: type) type {
 
 /// facilitates the integration over arbitrary parameter, energy
 /// and flux arrays
-fn MultiEmissivityLineProfile(
+pub fn MultiEmissivityLineProfile(
     comptime NParams: comptime_int,
     comptime T: type,
 ) type {
