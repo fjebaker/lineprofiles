@@ -29,6 +29,9 @@ pub fn readTransferFunctions(
         errdefer allocator.free(lower_f);
         errdefer for (lower_f) |line| allocator.free(line);
 
+        var radii = try table.getColumnTyped(f32, 1, allocator, .{});
+        errdefer allocator.free(radii);
+
         var gmins = try table.getColumnTyped(f32, 2, allocator, .{});
         errdefer allocator.free(gmins);
 
@@ -40,6 +43,7 @@ pub fn readTransferFunctions(
             .lower_branch = lower_f,
             .gmin = gmins,
             .gmax = gmaxs,
+            .radii = radii,
         });
     }
     return list.toOwnedSlice();
@@ -58,10 +62,6 @@ pub fn readFitsFile(path: []const u8, allocator: std.mem.Allocator) !LineProfile
     var mus = try mu_hdu.BinaryTable.getColumnTyped(f32, 1, allocator, .{});
     errdefer allocator.free(mus);
 
-    // read in the radii
-    var radii = try (try f.getHDU(4)).BinaryTable.getColumnTyped(f32, 1, allocator, .{});
-    errdefer allocator.free(radii);
-
     // todo: get the actual gstars
     var gstars = try allocator.dupe(f32, &[_]f32{ 0.0, 1.0 });
     errdefer allocator.free(gstars);
@@ -74,7 +74,6 @@ pub fn readFitsFile(path: []const u8, allocator: std.mem.Allocator) !LineProfile
     return LineProfileTable.init(
         allocator,
         gstars,
-        radii,
         tf,
         [2][]f32{ alphas, mus },
     );

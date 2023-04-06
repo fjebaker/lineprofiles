@@ -10,6 +10,7 @@ pub fn TransferFunction(comptime T: type) type {
         lower_branch: [][]T,
         gmin: []T,
         gmax: []T,
+        radii: []T,
 
         pub fn copy(self: *const Self, allocator: std.mem.Allocator) !Self {
             var ub = try util.dupe2d(T, allocator, self.upper_branch);
@@ -24,11 +25,15 @@ pub fn TransferFunction(comptime T: type) type {
             var gmax = try allocator.dupe(T, self.gmax);
             errdefer allocator.free(gmax);
 
+            var radii = try allocator.dupe(T, self.radii);
+            errdefer allocator.free(radii);
+
             return .{
                 .upper_branch = ub,
                 .lower_branch = lb,
                 .gmin = gmin,
                 .gmax = gmax,
+                .radii = radii,
             };
         }
 
@@ -37,6 +42,7 @@ pub fn TransferFunction(comptime T: type) type {
             util.free2d(T, allocator, self.lower_branch);
             allocator.free(self.gmin);
             allocator.free(self.gmax);
+            allocator.free(self.radii);
         }
 
         pub fn assignFrom(self: *Self, other: *const Self) void {
@@ -48,6 +54,7 @@ pub fn TransferFunction(comptime T: type) type {
             }
             std.mem.copy(T, self.gmin, other.gmin);
             std.mem.copy(T, self.gmax, other.gmax);
+            std.mem.copy(T, self.radii, other.radii);
         }
 
         pub fn interpolateBetween(
@@ -88,6 +95,13 @@ pub fn TransferFunction(comptime T: type) type {
                 other.gmax,
                 out.gmax,
             );
+            util.linear_interpolate_arrays(
+                T,
+                weight,
+                self.radii,
+                other.radii,
+                out.radii,
+            );
         }
     };
 }
@@ -101,9 +115,10 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
         // into which we write the interpolations
         cache_upper: []T,
         cache_lower: []T,
+        cache_gmin: T = 0,
+        cache_gmax: T = 0,
         // we don't own these, they are referenced from
         // the parent
-        radii: []const T,
         gstars: []const T,
         // store the last high indices for cached searches
         last_r_index: usize = 0,
@@ -116,14 +131,14 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
 
         pub fn stage_radius(self: *Self, r: T) void {
             // radii are reversed
-            const start = if (r >= self.radii[self.last_r_index])
+            const start = if (r > self.tf.radii[self.last_r_index])
                 0
             else
                 self.last_r_index;
-            const loc = util.find_first_leq(T, self.radii, r, start) orelse {
+            const loc = util.find_first_leq(T, self.tf.radii, r, start) orelse {
                 // stage the minimal possible radius
-                self.stage_index(self.radii.len - 1);
-                self.last_r_index = self.radii.len - 1;
+                self.stage_index(self.tf.radii.len - 1);
+                self.last_r_index = self.tf.radii.len - 1;
                 return;
             };
             const ilow = if (loc.index > 1) loc.index - 1 else {
@@ -133,10 +148,17 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
                 return;
             };
 
+            // clamp to avoid extrapolation
+            var r_clamped = std.math.clamp(
+                r,
+                self.tf.radii[self.tf.radii.len - 1],
+                self.tf.radii[0],
+            );
+
             // interpolant factor: since everything is for the same radius
             // we build it as (r - r0) / (r1 - r0) to then be multiplied by (f1 - f0)
-            const r0 = self.radii[ilow];
-            const factor = (r - r0) / (loc.value - r0);
+            const r0 = self.tf.radii[ilow];
+            const factor = (r_clamped - r0) / (loc.value - r0);
             self.stage_interpolated(loc.index, factor);
             self.last_r_index = loc.index;
         }
@@ -146,10 +168,19 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
                 const f0 = self.tf.lower_branch[index - 1][i];
                 f.* = (self.tf.lower_branch[index][i] - f0) * factor + f0;
             }
+
             for (self.cache_upper, 0..) |*f, i| {
                 const f0 = self.tf.upper_branch[index - 1][i];
                 f.* = (self.tf.upper_branch[index][i] - f0) * factor + f0;
             }
+
+            const gmax0 = self.tf.gmax[index - 1];
+            const gmax1 = self.tf.gmax[index];
+            self.cache_gmax = (gmax1 - gmax0) * factor + gmax0;
+
+            const gmin0 = self.tf.gmin[index - 1];
+            const gmin1 = self.tf.gmin[index];
+            self.cache_gmin = (gmin1 - gmin0) * factor + gmin0;
         }
 
         inline fn get_gstar_interpolating_factor(
@@ -190,7 +221,6 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
         }
 
         pub fn init(
-            radii: []const T,
             gstars: []const T,
             allocator: std.mem.Allocator,
             tf: *TransferFunction(T),
@@ -201,7 +231,6 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
                 .tf = tf,
                 .cache_upper = cache[0..n],
                 .cache_lower = cache[n..],
-                .radii = radii,
                 .gstars = gstars,
             };
         }

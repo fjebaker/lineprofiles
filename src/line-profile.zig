@@ -15,7 +15,6 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
         // these must be the same for all tables of data
         // if data for a specific radius does not exist, it is zeroed
         gstars: []T,
-        radii: []T,
         // there is a matrix of values for each parameter combination
         // there will be Np1 * Np2 * ... * Npn many frames, scaling with the
         // number of parameters, and how its been interpolated
@@ -218,7 +217,6 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
         pub fn init(
             alloc: std.mem.Allocator,
             gstars: []T,
-            radii: []T,
             transfer_functions: []TFunc,
             parameters: [NParams][]T,
         ) !Self {
@@ -231,7 +229,6 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
             // make a single interpolated transfer function regardless of
             // NParams
             var itf = try InterpolatingTransferFunction(T).init(
-                radii,
                 gstars,
                 alloc,
                 &cache[0],
@@ -246,7 +243,6 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
             return .{
                 .allocator = alloc,
                 .gstars = gstars,
-                .radii = radii,
                 .transfer_functions = transfer_functions,
                 .parameters = parameters,
                 .n_parameters = n_params,
@@ -258,7 +254,6 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
         // standard free everything approach
         pub fn deinit(self: *Self) void {
             self.allocator.free(self.gstars);
-            self.allocator.free(self.radii);
             // free the parameter arrays
             for (self.parameters) |p| {
                 self.allocator.free(p);
