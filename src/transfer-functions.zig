@@ -125,8 +125,8 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
         last_g_index: usize = 0,
 
         fn stage_index(self: *Self, index: usize) void {
-            for (self.cache_lower, 0..) |*f, i| f.* = self.tf.lower_branch[index][i];
-            for (self.cache_upper, 0..) |*f, i| f.* = self.tf.upper_branch[index][i];
+            for (0..self.cache_lower.len) |i| self.cache_lower[i] = self.tf.lower_branch[index][i];
+            for (0..self.cache_upper.len) |i| self.cache_upper[i] = self.tf.upper_branch[index][i];
         }
 
         pub fn stage_radius(self: *Self, r: T) void {

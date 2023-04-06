@@ -44,7 +44,7 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
         // dont want to have to allocate new memory each time, so we keep one frame special
         // into which we write the new interpolation and return a copy which does not need
         // to be freed (since we own the memory)
-        interpolated_cache: [NParams]xfunc.TransferFunction(T),
+        interpolated_cache: []xfunc.TransferFunction(T),
         interpolated_transfer_function: InterpolatingTransferFunction(T),
 
         /// Conver the indices of the parameters to an index that may be used
@@ -53,8 +53,11 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
         ///   (p1, q1), (p1, q2), ... (p1, qn), (p2, q1), (p2, q2), ...
         fn parameter_indices_to_table_index(self: *const Self, param_indices: [NParams]usize) usize {
             var index: usize = 0;
-            for (0..NParams - 1) |i| {
-                const stride = util.product(usize, self.n_parameters[i + 1 ..]);
+            for (0..NParams) |i| {
+                const stride: usize = if (i < NParams - 1)
+                    util.product(usize, self.n_parameters[i + 1 ..])
+                else
+                    1;
                 index += param_indices[i] * stride;
             }
             return index;
@@ -85,7 +88,6 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
             self: *Self,
             parameters: [NParams]T,
         ) InterpolatingTransferFunction(T) {
-            //
             var base_indices: [NParams]usize = undefined;
             for (0..NParams) |i| {
                 const last_i = self.last_lower_parameters[i];
@@ -189,12 +191,15 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
             self: *const Self,
             parameter_indices: [NParams]usize,
         ) [NParams * 2]usize {
+            // mutable copy of the parameter_indices
             var pindices: [NParams]usize = undefined;
             std.mem.copy(usize, &pindices, &parameter_indices);
+            // store the table striding the chosen parameter interpolation
             var table_indices: [NParams * 2]usize = undefined;
             for (0..NParams) |i| {
-                const saved_index = pindices[i];
                 const j = i * 2;
+                // save the index so we can modify it and restore at the end
+                const saved_index = pindices[i];
                 const to_indices =
                     self.parameter_indices_to_table_index(pindices);
                 if (saved_index > 1) {
@@ -207,6 +212,7 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
                     // restore for the next loop
                     pindices[i] = saved_index;
                 } else {
+                    // chosen value is at the edge of the parameter space
                     table_indices[j] = to_indices;
                     table_indices[j + 1] = to_indices;
                 }
@@ -221,8 +227,12 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
             parameters: [NParams][]T,
         ) !Self {
             // create the cache
-            var cache: [NParams]xfunc.TransferFunction(T) = undefined;
-            errdefer for (&cache) |*tf| tf.free(alloc);
+            // needs to be on the heap so we can point to it
+            // from the interpolation structs
+            var cache = try alloc.alloc(xfunc.TransferFunction(T), NParams);
+            errdefer alloc.free(cache);
+            errdefer for (cache) |*tf| tf.free(alloc);
+
             for (0..NParams) |i| {
                 cache[i] = try transfer_functions[0].copy(alloc);
             }
@@ -231,6 +241,7 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
             var itf = try InterpolatingTransferFunction(T).init(
                 gstars,
                 alloc,
+                // point to the cached function
                 &cache[0],
             );
 
@@ -265,7 +276,8 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
             self.allocator.free(self.transfer_functions);
             // free the interpolant cache
             self.interpolated_transfer_function.free(self.allocator);
-            for (&self.interpolated_cache) |*tf| tf.free(self.allocator);
+            for (self.interpolated_cache) |*tf| tf.free(self.allocator);
+            self.allocator.free(self.interpolated_cache);
         }
     };
 }

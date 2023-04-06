@@ -42,11 +42,11 @@ pub fn interpolation_test(allocator: std.mem.Allocator) !void {
     var data = try io.readFitsFile("../relline/rel_table.fits", allocator);
     defer data.deinit();
 
-    // var params = [2]f32{ 0.638, 0.276 };
-    // var itf = data.interpolate_parameters(params);
-    data.interpolated_cache[0].assignFrom(&data.transfer_functions[229]);
-    var itf = data.interpolated_transfer_function;
-    itf.stage_radius(1.341e1);
+    var params = [2]f32{ -8.8e-04, 0.276 };
+    var itf = data.interpolate_parameters(params);
+    // data.interpolated_cache[0].assignFrom(&data.transfer_functions[229]);
+    // var itf = data.interpolated_transfer_function;
+    itf.stage_radius(1.311e1);
 
     try printPlot(
         f32,
