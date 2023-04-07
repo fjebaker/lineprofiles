@@ -212,6 +212,7 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
                     .upper = self.cache_upper[0],
                 };
             };
+            // std.debug.print("gstar: {d} index: {d}\n", .{ gstar, loc.index });
             // interpolate lower branch
             const f0lower = self.cache_lower[loc.index - 1];
             const lower = loc.value * (self.cache_lower[loc.index] - f0lower) + f0lower;
@@ -246,11 +247,13 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             // combine the branches
             const f = fs.upper + fs.lower;
             const denom = std.math.sqrt(gstar * (1 - gstar)) * (self.cache_gmax - self.cache_gmin);
+            // std.debug.print("denom: {d}\n", .{denom});
             return f * std.math.pi * std.math.pow(T, g, 3) / denom;
         }
 
         fn integrand(self: *const Self, g: T) T {
             const gstar = util.g_to_gstar(g, self.cache_gmin, self.cache_gmax);
+            // std.debug.print("Integrand: {d} star {d}\n", .{ g, gstar });
             return self.integrand2(g, gstar);
         }
 
@@ -265,11 +268,9 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
                 // toy emissivity model
                 const emissivity = std.math.pow(T, r, -3);
                 const dr = Integrator.trapezoid_integration_weight(T, r_grid, i);
-
-                self.stage_radius(r);
-
                 const weight = dr * r * emissivity;
 
+                self.stage_radius(r);
                 self.integrate_transfer_function(g_grid, flux, weight);
             }
         }
@@ -295,8 +296,12 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             lim_star: T,
         ) T {
             const k = util.gstar_to_g(lim_star, self.cache_gmin, self.cache_gmax);
+            // std.debug.print("k: {d}\n", .{k});
             const w = @fabs(std.math.sqrt(k) - std.math.sqrt(lim));
-            return 2 * w * self.integrand(lim);
+            // std.debug.print("w: {d}\n", .{w});
+            const flux = 2 * w * self.integrand(k);
+            // std.debug.print("FF: {d}\n", .{flux});
+            return flux;
         }
 
         fn integrate_inner_bin(
@@ -310,7 +315,7 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             return 0.5 * (b - a) * (self.integrand(a) + self.integrand(b));
         }
 
-        const H = 2e-8;
+        const H = 2e-6;
         fn integrate_g_bin(
             self: *const Self,
             low: T,
@@ -327,15 +332,19 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
                 return flux;
             }
 
+            // std.debug.print("glow: {d}, ghigh: {d}\n", .{ glow, ghigh });
+
             // transform to gstar
             const gstar_low = util.g_to_gstar(glow, self.cache_gmin, self.cache_gmax);
             const gstar_high = util.g_to_gstar(ghigh, self.cache_gmin, self.cache_gmax);
 
             // check if we're at lower edge
             if (gstar_low < H) {
+                // std.debug.print("lower edge\n", .{});
                 if (gstar_high > H) {
                     // H is strided by edges
                     flux += self.integrate_edge(glow, H);
+                    // std.debug.print("F: {d}\n", .{flux});
                     glow = util.gstar_to_g(@as(T, H), self.cache_gmin, self.cache_gmax);
                 } else {
                     flux += self.integrate_edge(glow, gstar_high);
@@ -344,6 +353,7 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             }
             // check if we're at upper edge
             if (gstar_high > 1 - H) {
+                // std.debug.print("upper edge\n", .{});
                 if (gstar_low < 1 - H) {
                     flux += self.integrate_edge(ghigh, 1 - H);
                     ghigh = util.gstar_to_g(@as(T, 1 - H), self.cache_gmin, self.cache_gmax);

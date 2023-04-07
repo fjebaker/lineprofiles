@@ -3,6 +3,7 @@ const zfits = @import("zfits");
 
 const lineprof = @import("line-profile.zig");
 const xfunc = @import("transfer-functions.zig");
+const util = @import("utils.zig");
 
 const TransferFunction = xfunc.TransferFunction(f32);
 const LineProfileTable = lineprof.LineProfileTable(2, f32);
@@ -62,8 +63,7 @@ pub fn readFitsFile(path: []const u8, allocator: std.mem.Allocator) !LineProfile
     var mus = try mu_hdu.BinaryTable.getColumnTyped(f32, 1, allocator, .{});
     errdefer allocator.free(mus);
 
-    // todo: get the actual gstars
-    var gstars = try allocator.dupe(f32, &[_]f32{ 0.0, 1.0 });
+    var gstars = try allocator.dupe(f32, &util.relline_gstar_grid(f32));
     errdefer allocator.free(gstars);
 
     // unpack the list

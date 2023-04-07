@@ -39,10 +39,10 @@ pub fn printPlot(
 }
 
 pub fn interpolation_test(allocator: std.mem.Allocator) !void {
-    std.debug.print("Starting read...\n", .{});
+    // std.debug.print("Starting read...\n", .{});
     var data = try io.readFitsFile("../relline/rel_table.fits", allocator);
     defer data.deinit();
-    std.debug.print("Done.\n", .{});
+    // std.debug.print("Done.\n", .{});
 
     var params = [2]f32{ 0.99, 0.421 };
     var itf = data.interpolate_parameters(params);
@@ -86,10 +86,12 @@ pub fn integrate(allocator: std.mem.Allocator) !void {
     // and zero it
     for (flux) |*f| f.* = 0;
 
-    var params = [2]f32{ 0.99, 0.5 };
+    var params = [2]f32{ 0.91, 0.5 };
     var itf = data.interpolate_parameters(params);
 
     itf.integrate(r_grid, g_grid, flux);
+
+    util.normalize(f32, flux);
 
     for (0..flux.len) |i| {
         try stream.print("{d}\t{d}\n", .{ g_grid[i], flux[i] });

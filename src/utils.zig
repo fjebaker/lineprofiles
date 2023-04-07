@@ -16,7 +16,7 @@ pub fn g_to_gstar(
     gmin: @TypeOf(g),
     gmax: @TypeOf(g),
 ) @TypeOf(g) {
-    return g - gmin / (gmax - gmin);
+    return (g - gmin) / (gmax - gmin);
 }
 
 pub fn gstar_to_g(
@@ -171,6 +171,12 @@ pub fn inverse_grid(
     }
     std.mem.reverse(T, grid);
     return grid;
+}
+
+pub fn normalize(comptime T: type, arr: []T) void {
+    var sum: T = 0;
+    for (arr) |v| sum += v;
+    for (arr) |*v| v.* = v.* / sum;
 }
 
 const RELLINE_N_GSTAR = 20;
