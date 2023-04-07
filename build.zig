@@ -25,7 +25,7 @@ pub fn build(b: *std.Build) void {
     const build_xspec = b.option(bool, "xspec", "Build XSPEC shared library.") orelse false;
     if (build_xspec) {
         const xspec = b.addSharedLibrary(.{
-            .name = "memis",
+            .name = "lineprofiles",
             .root_source_file = .{ .path = "src/xspec-wrapper.zig" },
             .version = .{ .major = 0, .minor = 1 },
             .target = target,
