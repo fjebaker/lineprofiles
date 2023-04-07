@@ -11,6 +11,19 @@ pub fn product(
     return prod;
 }
 
+pub fn convert(
+    comptime T: type,
+    comptime C: type,
+    allocator: std.mem.Allocator,
+    source: []const C,
+) ![]T {
+    var out = try allocator.alloc(T, source.len);
+    for (0..source.len) |i| {
+        out[i] = @floatCast(T, source[i]);
+    }
+    return out;
+}
+
 pub fn g_to_gstar(
     g: anytype,
     gmin: @TypeOf(g),
@@ -179,13 +192,13 @@ pub fn normalize(comptime T: type, arr: []T) void {
     for (arr) |*v| v.* = v.* / sum;
 }
 
-pub fn refine_grid(comptime T: type, grid: []const T, fine_grid: []T, N: usize) void {
-    std.debug.assert(N == (fine_grid.len / grid.len));
+pub fn refine_grid(comptime T: type, grid: anytype, fine_grid: []T, N: usize) void {
+    std.debug.assert((grid.len - 1) * N == fine_grid.len);
 
     var j: usize = 0;
     for (1..grid.len) |i| {
-        const g0 = grid[i - 1];
-        const g1 = grid[i];
+        const g0 = @floatCast(T, grid[i - 1]);
+        const g1 = @floatCast(T, grid[i]);
 
         // interpolate the grid
         for (0..N) |k| {
@@ -194,6 +207,8 @@ pub fn refine_grid(comptime T: type, grid: []const T, fine_grid: []T, N: usize) 
             j += 1;
         }
     }
+    // TODO: note that this is technically missing the very last
+    // edge in grid
 }
 
 const RELLINE_N_GSTAR = 20;

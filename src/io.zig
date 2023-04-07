@@ -5,16 +5,16 @@ const lineprof = @import("line-profile.zig");
 const xfunc = @import("transfer-functions.zig");
 const util = @import("utils.zig");
 
-const TransferFunction = xfunc.TransferFunction(f32);
-const LineProfileTable = lineprof.LineProfileTable(2, f32);
-
 pub fn readTransferFunctions(
     comptime T: type,
+    comptime DataType: type,
     allocator: std.mem.Allocator,
     f: *zfits.FITS,
     offset: usize,
 ) ![]xfunc.TransferFunction(T) {
-    var list = try std.ArrayList(TransferFunction).initCapacity(allocator, f.num_hdus - offset);
+    if (T != DataType) @compileError("Type mistmatch.");
+
+    var list = try std.ArrayList(xfunc.TransferFunction(T)).initCapacity(allocator, f.num_hdus - offset);
     errdefer list.deinit();
     errdefer for (list.items) |*tf| tf.free(allocator);
 
@@ -22,21 +22,21 @@ pub fn readTransferFunctions(
     for (offset..f.num_hdus) |i| {
         const table = (try f.getHDU(i)).BinaryTable;
 
-        var upper_f = try table.getColumnVectorTyped(f32, 4, allocator);
+        var upper_f = try table.getColumnVectorTyped(DataType, 4, allocator);
         errdefer allocator.free(upper_f);
         errdefer for (upper_f) |line| allocator.free(line);
 
-        var lower_f = try table.getColumnVectorTyped(f32, 5, allocator);
+        var lower_f = try table.getColumnVectorTyped(DataType, 5, allocator);
         errdefer allocator.free(lower_f);
         errdefer for (lower_f) |line| allocator.free(line);
 
-        var radii = try table.getColumnTyped(f32, 1, allocator, .{});
+        var radii = try table.getColumnTyped(DataType, 1, allocator, .{});
         errdefer allocator.free(radii);
 
-        var gmins = try table.getColumnTyped(f32, 2, allocator, .{});
+        var gmins = try table.getColumnTyped(DataType, 2, allocator, .{});
         errdefer allocator.free(gmins);
 
-        var gmaxs = try table.getColumnTyped(f32, 3, allocator, .{});
+        var gmaxs = try table.getColumnTyped(DataType, 3, allocator, .{});
         errdefer allocator.free(gmaxs);
 
         list.appendAssumeCapacity(.{
@@ -50,31 +50,36 @@ pub fn readTransferFunctions(
     return list.toOwnedSlice();
 }
 
-pub fn readFitsFile(path: []const u8, allocator: std.mem.Allocator) !LineProfileTable {
+pub fn readFitsFile(
+    comptime NParams: comptime_int,
+    comptime T: type,
+    path: []const u8,
+    allocator: std.mem.Allocator,
+) !lineprof.LineProfileTable(NParams, T) {
     var f = try zfits.FITS.initFromFile(path);
     errdefer f.deinit();
 
     // todo: n generic parameters
     const alpha_hdu = try f.getHDU(2);
-    var alphas = try alpha_hdu.BinaryTable.getColumnTyped(f32, 1, allocator, .{});
+    var alphas = try alpha_hdu.BinaryTable.getColumnTyped(T, 1, allocator, .{});
     errdefer allocator.free(alphas);
 
     const mu_hdu = try f.getHDU(3);
-    var mus = try mu_hdu.BinaryTable.getColumnTyped(f32, 1, allocator, .{});
+    var mus = try mu_hdu.BinaryTable.getColumnTyped(T, 1, allocator, .{});
     errdefer allocator.free(mus);
 
-    var gstars = try allocator.dupe(f32, &util.relline_gstar_grid(f32));
+    var gstars = try allocator.dupe(T, &util.relline_gstar_grid(T));
     errdefer allocator.free(gstars);
 
     // unpack the list
-    var tf = try readTransferFunctions(f32, allocator, &f, 4);
+    var tf = try readTransferFunctions(T, f32, allocator, &f, 4);
     errdefer allocator.free(tf);
     errdefer for (tf) |*t| t.free(allocator);
 
-    return LineProfileTable.init(
+    return lineprof.LineProfileTable(NParams, T).init(
         allocator,
         gstars,
         tf,
-        [2][]f32{ alphas, mus },
+        [2][]T{ alphas, mus },
     );
 }

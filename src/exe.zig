@@ -66,7 +66,7 @@ pub fn integrate(allocator: std.mem.Allocator) !void {
     const stream = std.io.getStdOut().writer();
 
     std.debug.print("Starting read...\n", .{});
-    var data = try io.readFitsFile("../relline/rel_table.fits", allocator);
+    var data = try io.readFitsFile(2, f32, "../relline/rel_table.fits", allocator);
     defer data.deinit();
     std.debug.print("Done.\n", .{});
 
@@ -86,7 +86,7 @@ pub fn integrate(allocator: std.mem.Allocator) !void {
     // and zero it
     for (flux) |*f| f.* = 0;
 
-    var params = [2]f32{ 0.91, 0.5 };
+    var params = [2]f32{ 0.91, 0.9 };
     var itf = data.interpolate_parameters(params);
 
     itf.integrate(r_grid, g_grid, flux);
