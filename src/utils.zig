@@ -179,6 +179,23 @@ pub fn normalize(comptime T: type, arr: []T) void {
     for (arr) |*v| v.* = v.* / sum;
 }
 
+pub fn refine_grid(comptime T: type, grid: []const T, fine_grid: []T, N: usize) void {
+    std.debug.assert(N == (fine_grid.len / grid.len));
+
+    var j: usize = 0;
+    for (1..grid.len) |i| {
+        const g0 = grid[i - 1];
+        const g1 = grid[i];
+
+        // interpolate the grid
+        for (0..N) |k| {
+            const factor = @intToFloat(T, k) / @intToFloat(T, N);
+            fine_grid[j] = factor * g1 + (1 - factor) * g0;
+            j += 1;
+        }
+    }
+}
+
 const RELLINE_N_GSTAR = 20;
 pub fn relline_gstar_grid(comptime T: type) [RELLINE_N_GSTAR]T {
     const h = 2e-3;

@@ -22,6 +22,21 @@ pub fn build(b: *std.Build) void {
 
     lib.install();
 
+    const build_xspec = b.option(bool, "xspec", "Build XSPEC shared library.") orelse false;
+    if (build_xspec) {
+        const xspec = b.addSharedLibrary(.{
+            .name = "memis",
+            .root_source_file = .{ .path = "src/xspec-wrapper.zig" },
+            .version = .{ .major = 0, .minor = 1 },
+            .target = target,
+            .optimize = optimize,
+        });
+        xspec.addModule("zfits", zfits.module("zfits"));
+        xspec.addIncludePath(HEADER_PATH);
+        xspec.linkLibrary(zfits.artifact("cfitsio"));
+        xspec.install();
+    }
+
     // create a temporary executable
     const exe = b.addExecutable(.{
         .name = "profl",
