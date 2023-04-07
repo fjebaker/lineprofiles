@@ -3,6 +3,7 @@ const xfunc = @import("transfer-functions.zig");
 const util = @import("utils.zig");
 
 const InterpolatingTransferFunction = xfunc.InterpolatingTransferFunction;
+const Integrator = @import("Integrator.zig");
 
 /// keeps all of the read in data in a structure
 pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
@@ -282,33 +283,6 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
     };
 }
 
-fn Integrator(comptime T: type) type {
-    return struct {
-        const Self = @This();
-        // unlikely that the intervals in x are evenly spaced
-        // so if we can mandate the spacing, use a gaussian
-        // quadrature rule
-        pub fn integrate_gauss(self: *Self, a: T, b: T, y: []const T) T {
-            _ = self;
-            _ = a;
-            _ = b;
-            _ = y;
-        }
-        // if they are equally spaced
-        pub fn integrate_trapezoid(self: *Self, x: []const T, y: []const T) T {
-            _ = self;
-            _ = x;
-            _ = y;
-        }
-        pub fn integrate_simpsons(self: *Self, x: []const T, y: []const T) T {
-            _ = self;
-            _ = x;
-            _ = y;
-        }
-        // todo: romberg
-    };
-}
-
 /// facilitates the integration over arbitrary parameter, energy
 /// and flux arrays
 pub fn MultiEmissivityLineProfile(
@@ -317,6 +291,5 @@ pub fn MultiEmissivityLineProfile(
 ) type {
     return struct {
         table: LineProfileTable(NParams, T),
-        integrator: Integrator(T),
     };
 }

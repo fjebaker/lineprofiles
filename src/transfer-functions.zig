@@ -1,6 +1,8 @@
 const std = @import("std");
 const util = @import("utils.zig");
 
+const Integrator = @import("Integrator.zig");
+
 pub fn TransferFunction(comptime T: type) type {
     return struct {
         const Self = @This();
@@ -192,12 +194,11 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             else
                 0;
             // should not be possible for gstar to not be in [0,1]
-            const loc = util.find_first_geq(T, self.gstars, gstar, start) catch unreachable;
+            const loc = util.find_first_geq(T, self.gstars, gstar, start) orelse unreachable;
             const ilow = if (loc.index > 1) loc.index - 1 else return null;
             const g0 = self.gstars[ilow];
             // interpolant factor
             const factor = (gstar - g0) / (self.gstars[loc.index] - g0);
-            self.last_g_index = loc.index;
             return .{ .index = loc.index, .value = factor };
         }
 
@@ -213,10 +214,10 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             };
             // interpolate lower branch
             const f0lower = self.cache_lower[loc.index - 1];
-            const lower = loc.factor * (self.cache_lower[loc.index] - f0lower) + f0lower;
+            const lower = loc.value * (self.cache_lower[loc.index] - f0lower) + f0lower;
             // interpolate upper branch
             const f0upper = self.cache_upper[loc.index - 1];
-            const upper = loc.factor * (self.cache_upper[loc.index] - f0upper) + f0upper;
+            const upper = loc.value * (self.cache_upper[loc.index] - f0upper) + f0upper;
             return .{ .lower = lower, .upper = upper };
         }
 
@@ -238,6 +239,122 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
         pub fn free(self: *Self, allocator: std.mem.Allocator) void {
             // only the upper cache has the pointer
             allocator.free(self.cache_upper);
+        }
+
+        fn integrand2(self: *const Self, g: T, gstar: T) T {
+            const fs = self.branches_at_gstar(gstar);
+            // combine the branches
+            const f = fs.upper + fs.lower;
+            const denom = std.math.sqrt(gstar * (1 - gstar)) * (self.cache_gmax - self.cache_gmin);
+            return f * std.math.pi * std.math.pow(T, g, 3) / denom;
+        }
+
+        fn integrand(self: *const Self, g: T) T {
+            const gstar = util.g_to_gstar(g, self.cache_gmin, self.cache_gmax);
+            return self.integrand2(g, gstar);
+        }
+
+        pub fn integrate(
+            self: *Self,
+            r_grid: []const T,
+            g_grid: []const T,
+            flux: []T,
+        ) void {
+            for (0..r_grid.len) |i| {
+                const r = r_grid[i];
+                // toy emissivity model
+                const emissivity = std.math.pow(T, r, -3);
+                const dr = Integrator.trapezoid_integration_weight(T, r_grid, i);
+
+                self.stage_radius(r);
+
+                const weight = dr * r * emissivity;
+
+                self.integrate_transfer_function(g_grid, flux, weight);
+            }
+        }
+
+        fn integrate_transfer_function(
+            self: *const Self,
+            g_grid: []const T,
+            out: []T,
+            weight: T,
+        ) void {
+            // assert dimensions are correct
+            std.debug.assert(g_grid.len == out.len + 1);
+            for (0..g_grid.len - 1) |i| {
+                const a = g_grid[i];
+                const b = g_grid[i + 1];
+                out[i] += self.integrate_g_bin(a, b) * weight;
+            }
+        }
+
+        fn integrate_edge(
+            self: *const Self,
+            lim: T,
+            lim_star: T,
+        ) T {
+            const k = util.gstar_to_g(lim_star, self.cache_gmin, self.cache_gmax);
+            const w = @fabs(std.math.sqrt(k) - std.math.sqrt(lim));
+            return 2 * w * self.integrand(lim);
+        }
+
+        fn integrate_inner_bin(
+            self: *const Self,
+            a: T,
+            b: T,
+        ) T {
+            // simple trapezoidal
+            // TODO: do we really need something more complex, given how coarse
+            // the interpolation is?
+            return 0.5 * (b - a) * (self.integrand(a) + self.integrand(b));
+        }
+
+        const H = 2e-8;
+        fn integrate_g_bin(
+            self: *const Self,
+            low: T,
+            high: T,
+        ) T {
+            var flux: T = 0;
+
+            // clamp the values
+            var glow = std.math.clamp(low, self.cache_gmin, self.cache_gmax);
+            var ghigh = std.math.clamp(high, self.cache_gmin, self.cache_gmax);
+
+            // out of bounds check
+            if (glow == ghigh) {
+                return flux;
+            }
+
+            // transform to gstar
+            const gstar_low = util.g_to_gstar(glow, self.cache_gmin, self.cache_gmax);
+            const gstar_high = util.g_to_gstar(ghigh, self.cache_gmin, self.cache_gmax);
+
+            // check if we're at lower edge
+            if (gstar_low < H) {
+                if (gstar_high > H) {
+                    // H is strided by edges
+                    flux += self.integrate_edge(glow, H);
+                    glow = util.gstar_to_g(@as(T, H), self.cache_gmin, self.cache_gmax);
+                } else {
+                    flux += self.integrate_edge(glow, gstar_high);
+                    return flux;
+                }
+            }
+            // check if we're at upper edge
+            if (gstar_high > 1 - H) {
+                if (gstar_low < 1 - H) {
+                    flux += self.integrate_edge(ghigh, 1 - H);
+                    ghigh = util.gstar_to_g(@as(T, 1 - H), self.cache_gmin, self.cache_gmax);
+                } else {
+                    flux += self.integrate_edge(ghigh, gstar_low);
+                }
+            }
+
+            // integrate everything that isn't edge
+            flux += self.integrate_inner_bin(glow, ghigh);
+            return flux;
         }
     };
 }

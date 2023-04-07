@@ -48,6 +48,7 @@ pub fn interpolation_test(allocator: std.mem.Allocator) !void {
     var itf = data.interpolate_parameters(params);
     // data.interpolated_cache[0].assignFrom(&data.transfer_functions[428]);
     // var itf = data.interpolated_transfer_function;
+
     itf.stage_radius(4.616);
 
     try printPlot(
@@ -61,10 +62,45 @@ pub fn interpolation_test(allocator: std.mem.Allocator) !void {
     );
 }
 
+pub fn integrate(allocator: std.mem.Allocator) !void {
+    const stream = std.io.getStdOut().writer();
+
+    std.debug.print("Starting read...\n", .{});
+    var data = try io.readFitsFile("../relline/rel_table.fits", allocator);
+    defer data.deinit();
+    std.debug.print("Done.\n", .{});
+
+    // build r grid
+    var ritt = util.RangeIterator(f32).init(3.0, 50.0, 1000);
+    var r_grid = try ritt.drain(allocator);
+    defer allocator.free(r_grid);
+
+    // build g grid
+    var gitt = util.RangeIterator(f32).init(0.1, 1.5, 100);
+    var g_grid = try gitt.drain(allocator);
+    defer allocator.free(g_grid);
+
+    // allocate output
+    var flux = try allocator.alloc(f32, g_grid.len - 1);
+    defer allocator.free(flux);
+    // and zero it
+    for (flux) |*f| f.* = 0;
+
+    var params = [2]f32{ 0.99, 0.5 };
+    var itf = data.interpolate_parameters(params);
+
+    itf.integrate(r_grid, g_grid, flux);
+
+    for (0..flux.len) |i| {
+        try stream.print("{d}\t{d}\n", .{ g_grid[i], flux[i] });
+    }
+}
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     var alloc = gpa.allocator();
 
-    try interpolation_test(alloc);
+    // try interpolation_test(alloc);
+    try integrate(alloc);
 }

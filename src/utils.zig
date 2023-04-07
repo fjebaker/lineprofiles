@@ -129,6 +129,16 @@ pub fn RangeIterator(comptime T: type) type {
                 .current = min,
             };
         }
+
+        pub fn drain(self: *Self, allocator: std.mem.Allocator) ![]T {
+            var out = try allocator.alloc(T, self.remaining);
+            var i: usize = 0;
+            while (self.next()) |v| {
+                out[i] = v;
+                i += 1;
+            }
+            return out;
+        }
     };
 }
 
