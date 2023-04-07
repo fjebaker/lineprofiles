@@ -71,12 +71,12 @@ pub fn integrate(allocator: std.mem.Allocator) !void {
     std.debug.print("Done.\n", .{});
 
     // build r grid
-    var ritt = util.RangeIterator(f32).init(3.0, 50.0, 1000);
+    var ritt = util.RangeIterator(f32).init(3.0, 50.0, 3000);
     var r_grid = try ritt.drain(allocator);
     defer allocator.free(r_grid);
 
     // build g grid
-    var gitt = util.RangeIterator(f32).init(0.1, 1.5, 100);
+    var gitt = util.RangeIterator(f32).init(0.1, 1.5, 200);
     var g_grid = try gitt.drain(allocator);
     defer allocator.free(g_grid);
 

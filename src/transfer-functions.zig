@@ -125,6 +125,7 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
         // store the last high indices for cached searches
         last_r_index: usize = 0,
         last_g_index: usize = 0,
+        current_r: T = 0,
 
         fn stage_index(self: *Self, index: usize) void {
             for (0..self.cache_lower.len) |i| self.cache_lower[i] = self.tf.lower_branch[index][i];
@@ -132,6 +133,7 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
         }
 
         pub fn stage_radius(self: *Self, r: T) void {
+            self.current_r = r;
             // radii are reversed
             const start = if (r > self.tf.radii[self.last_r_index])
                 0
@@ -194,7 +196,11 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             else
                 0;
             // should not be possible for gstar to not be in [0,1]
-            const loc = util.find_first_geq(T, self.gstars, gstar, start) orelse unreachable;
+            const loc: util.ValueIndex(T) =
+                util.find_first_geq(T, self.gstars, gstar, start) orelse .{
+                .index = self.gstars.len - 1,
+                .value = 1.0,
+            };
             const ilow = if (loc.index > 1) loc.index - 1 else return null;
             const g0 = self.gstars[ilow];
             // interpolant factor
@@ -287,6 +293,15 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
                 const a = g_grid[i];
                 const b = g_grid[i + 1];
                 out[i] += self.integrate_g_bin(a, b) * weight;
+                if (std.math.isNan(out[i]) or std.math.isInf(out[i])) {
+                    std.debug.print("{d} hit at r={d} for [a,b] = [{d},{d}]\n", .{
+                        out[i],
+                        self.current_r,
+                        a,
+                        b,
+                    });
+                    @panic("END");
+                }
             }
         }
 
@@ -315,7 +330,7 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             return 0.5 * (b - a) * (self.integrand(a) + self.integrand(b));
         }
 
-        const H = 2e-6;
+        const H = 1e-4;
         fn integrate_g_bin(
             self: *const Self,
             low: T,
@@ -359,11 +374,13 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
                     ghigh = util.gstar_to_g(@as(T, 1 - H), self.cache_gmin, self.cache_gmax);
                 } else {
                     flux += self.integrate_edge(ghigh, gstar_low);
+                    return flux;
                 }
             }
 
             // integrate everything that isn't edge
             flux += self.integrate_inner_bin(glow, ghigh);
+            // std.debug.print("flux={d}\n", .{flux});
             return flux;
         }
     };
