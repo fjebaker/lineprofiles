@@ -1,0 +1,30 @@
+name: Bundle
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        target: [x86_64-linux-gnu, x86_64-macos-none, aarch64-macos-none] 
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.11.0-dev.2646+3d33a0906
+      - name: Build and cache
+        run: zig build -Dxspec -Doptimize=ReleaseFast -Dtarget=${{matrix.target}}
+      - name: Move artifact
+        run: mv zig-out/lib/libxslineprofiles.* ./xspec
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{matrix.target}}-lineprofiles
+          path: ./xspec
+
