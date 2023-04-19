@@ -1,0 +1,5 @@
+klineprofile     3     	0.  1.e20	c_kerrlineprofile	add    	0 		0
+a   " "     0.998   -0.998  -0.998   0.998  0.998   0.001
+Incl    deg     60  0.   0.   90.  90.  1
+Eline   keV     6.4     0.  0.  10.     10.     0.1
+

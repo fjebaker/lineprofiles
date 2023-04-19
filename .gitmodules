@@ -1,0 +1,3 @@
+[submodule "vendor/zigFITSIO"]
+	path = vendor/zigFITSIO
+	url = git@github.com:fjebaker/zigFITSIO

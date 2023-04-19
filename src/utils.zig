@@ -192,18 +192,20 @@ pub fn normalize(comptime T: type, arr: []T) void {
     for (arr) |*v| v.* = v.* / sum;
 }
 
-pub fn refine_grid(comptime T: type, grid: anytype, fine_grid: []T, N: usize) void {
+pub fn refine_grid(comptime T: type, grid: anytype, fine_grid: []T, N: usize, norm: T) void {
     std.debug.assert((grid.len - 1) * N == fine_grid.len);
+    const inorm = 1 / norm;
 
     var j: usize = 0;
     for (1..grid.len) |i| {
-        const g0 = @floatCast(T, grid[i - 1]);
-        const g1 = @floatCast(T, grid[i]);
+        const v0 = @floatCast(T, grid[i - 1]);
+        const v1 = @floatCast(T, grid[i]);
 
         // interpolate the grid
         for (0..N) |k| {
             const factor = @intToFloat(T, k) / @intToFloat(T, N);
-            fine_grid[j] = factor * g1 + (1 - factor) * g0;
+            const v = factor * v1 + (1 - factor) * v0;
+            fine_grid[j] = v * inorm;
             j += 1;
         }
     }

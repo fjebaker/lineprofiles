@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const zigFITSTIO = @import("./vendor/zigFITSIO/zigFITSIO.zig");
+
 const HEADER_PATH = "include";
 // Although this function looks imperative, note that its job is to
 // declaratively construct a build graph that will be executed by an external
@@ -8,57 +10,50 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const zfits = b.dependency("zfits", .{ .target = target, .optimize = optimize });
-
-    const lib = b.addStaticLibrary(.{
-        .name = "lineprofile-integrator",
-        .root_source_file = .{ .path = "src/main.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-    lib.addModule("zfits", zfits.module("zfits"));
-    lib.addIncludePath(HEADER_PATH);
-    lib.linkLibrary(zfits.artifact("cfitsio"));
-
-    lib.install();
-
+    const zigfitsio = zigFITSTIO.create(b, target);
     const build_xspec = b.option(bool, "xspec", "Build XSPEC shared library.") orelse false;
     if (build_xspec) {
-        const xspec = b.addSharedLibrary(.{
-            .name = "lineprofiles",
+        const xspec = b.addStaticLibrary(.{
+            .name = "xslineprofiles",
             .root_source_file = .{ .path = "src/xspec-wrapper.zig" },
-            .version = .{ .major = 0, .minor = 1 },
             .target = target,
             .optimize = optimize,
         });
-        xspec.addModule("zfits", zfits.module("zfits"));
-        xspec.addIncludePath(HEADER_PATH);
-        xspec.linkLibrary(zfits.artifact("cfitsio"));
-        xspec.install();
+        zigfitsio.link(xspec);
+        b.installArtifact(xspec);
+    } else {
+        const lib = b.addStaticLibrary(.{
+            .name = "lineprofiles",
+            .root_source_file = .{ .path = "src/main.zig" },
+            .target = target,
+            .optimize = optimize,
+        });
+        zigfitsio.link(lib);
+        b.installArtifact(lib);
     }
 
     // create a temporary executable
-    const exe = b.addExecutable(.{
-        .name = "profl",
-        .root_source_file = .{ .path = "src/exe.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-    exe.addModule("zfits", zfits.module("zfits"));
-    exe.addIncludePath(HEADER_PATH);
-    exe.linkLibrary(zfits.artifact("cfitsio"));
-    exe.install();
+    const debug_exe = b.option(bool, "exe", "Build a CLI executable (intended for debug).") orelse false;
+    if (debug_exe) {
+        const exe = b.addExecutable(.{
+            .name = "test-exe",
+            .root_source_file = .{ .path = "src/exe.zig" },
+            .target = target,
+            .optimize = optimize,
+        });
+        zigfitsio.link(exe);
+        b.installArtifact(exe);
+    }
 
     // Creates a step for unit testing.
-    const main_tests = b.addTest(.{
+    var main_tests = b.addTest(.{
         .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
         .optimize = optimize,
     });
-    main_tests.addModule("zfits", zfits.module("zfits"));
-    main_tests.linkLibrary(zfits.artifact("cfitsio"));
-    main_tests.addIncludePath(HEADER_PATH);
+    zigfitsio.link(main_tests);
 
     const test_step = b.step("test", "Run library tests");
-    test_step.dependOn(&main_tests.run().step);
+    const run_step = b.addRunArtifact(main_tests);
+    test_step.dependOn(&run_step.step);
 }

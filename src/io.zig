@@ -1,5 +1,5 @@
 const std = @import("std");
-const zfits = @import("zfits");
+const zigfitsio = @import("zigfitsio");
 
 const lineprof = @import("line-profile.zig");
 const xfunc = @import("transfer-functions.zig");
@@ -9,7 +9,7 @@ pub fn readTransferFunctions(
     comptime T: type,
     comptime DataType: type,
     allocator: std.mem.Allocator,
-    f: *zfits.FITS,
+    f: *zigfitsio.FITS,
     offset: usize,
 ) ![]xfunc.TransferFunction(T) {
     if (T != DataType) @compileError("Type mistmatch.");
@@ -56,7 +56,7 @@ pub fn readFitsFile(
     path: []const u8,
     allocator: std.mem.Allocator,
 ) !lineprof.LineProfileTable(NParams, T) {
-    var f = try zfits.FITS.initFromFile(path);
+    var f = try zigfitsio.FITS.initFromFile(path);
     errdefer f.deinit();
 
     // todo: n generic parameters
