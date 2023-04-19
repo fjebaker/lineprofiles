@@ -9,7 +9,7 @@ jobs:
   build:
     strategy:
       matrix:
-        target: [x86_64-linux-gnu, x86_64-macos-none, aarch64-macos-none] 
+        target: [x86_64-linux-gnu, aarch64-linux-gnu, x86_64-macos-none, aarch64-macos-none] 
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
