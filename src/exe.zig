@@ -4,6 +4,8 @@ const io = @import("io.zig");
 const xfunc = @import("transfer-functions.zig");
 const util = @import("utils.zig");
 
+const TABLE_FILE = "kerr-transfer-functions.fits";
+
 const CHOICE = 52;
 const NUM_FMT = "{d: <8.6}\t";
 
@@ -40,7 +42,7 @@ pub fn printPlot(
 
 pub fn interpolation_test(allocator: std.mem.Allocator) !void {
     // std.debug.print("Starting read...\n", .{});
-    var data = try io.readFitsFile("../relline/rel_table.fits", allocator);
+    var data = try io.readFitsFile(2, f32, TABLE_FILE, allocator);
     defer data.deinit();
     // std.debug.print("Done.\n", .{});
 
@@ -66,7 +68,7 @@ pub fn integrate(allocator: std.mem.Allocator) !void {
     const stream = std.io.getStdOut().writer();
 
     std.debug.print("Starting read...\n", .{});
-    var data = try io.readFitsFile(2, f32, "../relline/rel_table.fits", allocator);
+    var data = try io.readFitsFile(2, f32, TABLE_FILE, allocator);
     defer data.deinit();
     std.debug.print("Done.\n", .{});
 
@@ -86,7 +88,7 @@ pub fn integrate(allocator: std.mem.Allocator) !void {
     // and zero it
     for (flux) |*f| f.* = 0;
 
-    var params = [2]f32{ 0.91, 0.9 };
+    var params = [2]f32{ 0.91, 0.421 };
     var itf = data.interpolate_parameters(params);
 
     itf.integrate(r_grid, g_grid, flux);
