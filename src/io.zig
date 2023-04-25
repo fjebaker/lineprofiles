@@ -64,9 +64,9 @@ pub fn readFitsFile(
     var alphas = try alpha_hdu.BinaryTable.getColumnTyped(T, 1, allocator, .{});
     errdefer allocator.free(alphas);
 
-    const mu_hdu = try f.getHDU(3);
-    var mus = try mu_hdu.BinaryTable.getColumnTyped(T, 1, allocator, .{});
-    errdefer allocator.free(mus);
+    const incl = try f.getHDU(3);
+    var angle = try incl.BinaryTable.getColumnTyped(T, 1, allocator, .{});
+    errdefer allocator.free(angle);
 
     var gstars = try allocator.dupe(T, &util.relline_gstar_grid(T));
     errdefer allocator.free(gstars);
@@ -80,6 +80,6 @@ pub fn readFitsFile(
         allocator,
         gstars,
         tf,
-        [2][]T{ alphas, mus },
+        [2][]T{ alphas, angle },
     );
 }
