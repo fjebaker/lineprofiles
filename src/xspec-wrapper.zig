@@ -6,7 +6,7 @@ const lineprofile = @import("line-profile.zig");
 const NPARAMS = 2;
 const NMODELPARAMS = NPARAMS + 1;
 const REFINEMENT = 5;
-const MODELPATH = "rel_table.fits";
+const MODELPATH = "kerr-transfer-functions.fits";
 var allocator = std.heap.c_allocator;
 
 // singleton
@@ -69,7 +69,10 @@ export fn kerrlineprofile(
 
     // do we need to do first time setup?
     var lp = profile orelse blk: {
-        setup() catch @panic("COULD NOT INITIALIZE MODEL.");
+        setup() catch |e| {
+            std.debug.print("kerrlineprofile: error: {!}", .{e});
+            @panic("kerrlineprofile: fatal: COULD NOT INITIALIZE MODEL.");
+        };
         break :blk profile.?;
     };
 
