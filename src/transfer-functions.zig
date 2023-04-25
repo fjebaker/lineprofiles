@@ -114,7 +114,6 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
         // points to a cached branch
         tf: *TransferFunction(T),
         // cache of the current row of the data
-        // into which we write the interpolations
         cache_upper: []T,
         cache_lower: []T,
         cache_gmin: T = 0,
@@ -233,18 +232,20 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             tf: *TransferFunction(T),
         ) !Self {
             const n = tf.lower_branch[0].len;
-            var cache = try allocator.alloc(T, 2 * n);
+            var cache_upper = try allocator.alloc(T, n);
+            errdefer allocator.free(cache_upper);
+            var cache_lower = try allocator.alloc(T, n);
             return .{
                 .tf = tf,
-                .cache_upper = cache[0..n],
-                .cache_lower = cache[n..],
+                .cache_upper = cache_upper,
+                .cache_lower = cache_lower,
                 .gstars = gstars,
             };
         }
 
         pub fn free(self: *Self, allocator: std.mem.Allocator) void {
-            // only the upper cache has the pointer
             allocator.free(self.cache_upper);
+            allocator.free(self.cache_lower);
         }
 
         fn integrand2(self: *const Self, g: T, gstar: T) T {
