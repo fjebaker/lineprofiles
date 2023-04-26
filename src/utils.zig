@@ -180,7 +180,7 @@ pub fn inverse_grid(
     var grid = try alloc.alloc(T, N);
     var itt = RangeIterator(T).init(1 / max, 1 / min, N);
     for (grid) |*g| {
-        g.* = itt.next().?;
+        g.* = 1 / itt.next().?;
     }
     std.mem.reverse(T, grid);
     return grid;

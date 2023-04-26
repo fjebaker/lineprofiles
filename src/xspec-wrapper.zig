@@ -22,8 +22,7 @@ fn setup() !void {
     std.debug.print("kerrlineprofile: Read in {d} transfer function tables.\n", .{profile.?.transfer_functions.len});
 
     // build r grid
-    var ritt = util.RangeIterator(f32).init(3.0, 50.0, 2000);
-    r_grid = try ritt.drain(allocator);
+    r_grid = try util.inverse_grid(f32, allocator, 3.0, 50.0, 2000);
     errdefer allocator.free(r_grid);
 
     // build some g grid, it will be refined anyway

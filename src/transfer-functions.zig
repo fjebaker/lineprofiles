@@ -269,6 +269,17 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
         ) void {
             for (0..r_grid.len) |i| {
                 const r = r_grid[i];
+
+                // check if radius is defined in the transfer table
+                if (r < self.tf.radii[self.tf.radii.len - 1]) {
+                    // radius too small
+                    continue;
+                }
+                if (r > self.tf.radii[0]) {
+                    // radius too big
+                    continue;
+                }
+
                 // toy emissivity model
                 const emissivity = std.math.pow(T, r, -3);
                 const dr = Integrator.trapezoid_integration_weight(T, r_grid, i);
