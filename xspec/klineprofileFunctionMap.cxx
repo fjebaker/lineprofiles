@@ -7,12 +7,13 @@
 #include    "klineprofileFunctionMap.h"
 
 #include    <XSFunctions/Utilities/XSModelFunction.h>
+#include    <XSFunctions/Utilities/XSCall.h>
 
 void 
 createklineprofileFunctionMap()
 {
 
 
-	XSFunctionMap["klineprofile"] = new XSCall<xsccCall>(kerrlineprofile);
+	XSModelFunction::addFunctionPointer( "klineprofile", new XSCall<xsccCall>(kerrlineprofile) );
 
 }
