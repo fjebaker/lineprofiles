@@ -99,7 +99,7 @@ fn integrate_lineprofile(
     // do we need to do first time setup?
     var lp = profile orelse blk: {
         setup() catch |e| {
-            std.debug.print("kerrlineprofile: error: {!}", .{e});
+            std.debug.print("kerrlineprofile: error: {!}\n", .{e});
             @panic("kerrlineprofile: fatal: COULD NOT INITIALIZE MODEL.");
         };
         break :blk profile.?;
