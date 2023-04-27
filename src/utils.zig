@@ -170,6 +170,19 @@ test "range-iterator" {
     try std.testing.expectEqual(last, 32);
 }
 
+pub fn inverse_grid_inplace(
+    comptime T: type,
+    grid: []T,
+    min: T,
+    max: T,
+) void {
+    var itt = RangeIterator(T).init(1 / max, 1 / min, grid.len);
+    for (grid) |*g| {
+        g.* = 1 / itt.next().?;
+    }
+    std.mem.reverse(T, grid);
+}
+
 pub fn inverse_grid(
     comptime T: type,
     alloc: std.mem.Allocator,
@@ -178,11 +191,7 @@ pub fn inverse_grid(
     N: usize,
 ) ![]T {
     var grid = try alloc.alloc(T, N);
-    var itt = RangeIterator(T).init(1 / max, 1 / min, N);
-    for (grid) |*g| {
-        g.* = 1 / itt.next().?;
-    }
-    std.mem.reverse(T, grid);
+    inverse_grid_inplace(T, grid, min, max);
     return grid;
 }
 
