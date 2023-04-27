@@ -280,8 +280,9 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
                     continue;
                 }
 
-                // toy emissivity model
+                // TODO: toy emissivity model
                 const emissivity = std.math.pow(T, r, -3);
+
                 const dr = Integrator.trapezoid_integration_weight(T, r_grid, i);
                 const weight = dr * r * emissivity;
 
@@ -328,15 +329,12 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             return flux;
         }
 
-        fn integrate_inner_bin(
+        inline fn integrate_inner_bin(
             self: *const Self,
             a: T,
             b: T,
         ) T {
-            // simple trapezoidal
-            // TODO: do we really need something more complex, given how coarse
-            // the interpolation is?
-            return 0.5 * (b - a) * (self.integrand(a) + self.integrand(b));
+            return Integrator.integrate_kronrod(T, self, integrand, a, b);
         }
 
         const H = 1e-4;
