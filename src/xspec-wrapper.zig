@@ -3,10 +3,13 @@ const io = @import("io.zig");
 const util = @import("utils.zig");
 const lineprofile = @import("line-profile.zig");
 
+// number of parameters in the table
 const NPARAMS = 2;
-const NMODELPARAMS = NPARAMS + 1;
-const REFINEMENT = 5;
 const MODELPATH = "kerr-transfer-functions.fits";
+
+// refinement for the energy grid
+const REFINEMENT = 5;
+
 var allocator = std.heap.c_allocator;
 
 // singleton
@@ -15,11 +18,47 @@ var g_grid: []f32 = undefined;
 var r_grid: []f32 = undefined;
 var flux_cache: []f32 = undefined;
 
+fn Parameters(comptime T: type) type {
+    return struct {
+        const Self = @This();
+        a: T,
+        inclination: T,
+        eline: T,
+        rmin: T,
+        rmax: T,
+        pub fn from_ptr(ptr: *const f64) Parameters(T) {
+            const N = @typeInfo(Self).Struct.fields.len;
+            var slice = @ptrCast([*]const f64, ptr)[0..N];
+            return .{
+                .a = @floatCast(T, slice[0]),
+                // convert to cos(i)
+                .inclination = @cos(std.math.degreesToRadians(
+                    T,
+                    @floatCast(T, slice[1]),
+                )),
+                .eline = @floatCast(T, slice[2]),
+                .rmin = @floatCast(T, slice[3]),
+                .rmax = @floatCast(T, slice[4]),
+            };
+        }
+        pub fn table_parameters(self: Self) [NPARAMS]T {
+            return [_]T{ self.a, self.inclination };
+        }
+    };
+}
+
+fn set_radial_grid(comptime T: type, rmin: T, rmax: T) void {
+    util.inverse_grid_inplace(T, r_grid, rmin, rmax);
+}
+
 fn setup() !void {
     profile = try io.readFitsFile(NPARAMS, f32, MODELPATH, allocator);
     errdefer profile.?.deinit();
 
-    std.debug.print("kerrlineprofile: Read in {d} transfer function tables.\n", .{profile.?.transfer_functions.len});
+    std.debug.print(
+        "kerrlineprofile: Read in {d} transfer function tables.\n",
+        .{profile.?.transfer_functions.len},
+    );
 
     // build r grid
     r_grid = try util.inverse_grid(f32, allocator, 3.0, 50.0, 2000);
@@ -33,7 +72,7 @@ fn setup() !void {
     // allocate output
     flux_cache = try allocator.alloc(f32, g_grid.len - 1);
 
-    std.debug.print("kerrlineprofile: Finished setup.\n", .{});
+    std.debug.print("kerrlineprofile: Finished one-time setup.\n", .{});
 }
 
 fn refine_grid(comptime T: type, grid: anytype, norm: T) void {
@@ -41,31 +80,22 @@ fn refine_grid(comptime T: type, grid: anytype, norm: T) void {
     if (N != g_grid.len) {
         allocator.free(g_grid);
         g_grid = allocator.alloc(T, N) catch {
-            @panic("Failed to refine energy grid.");
+            @panic("kerrlineprofile: Failed to refine energy grid.");
         };
         allocator.free(flux_cache);
         flux_cache = allocator.alloc(T, N - 1) catch {
-            @panic("Failed to refine flux cache.");
+            @panic("kerrlineprofile: Failed to refine flux cache.");
         };
     }
     util.refine_grid(T, grid, g_grid, REFINEMENT, norm);
 }
 
-export fn kerrlineprofile(
-    // all inputs are double precision
-    energy_ptr: *const f64,
-    n_flux: c_int,
-    parameters_ptr: *const f64,
-    spectrum: c_int,
-    flux_ptr: *f64,
-    flux_variance_ptr: *f64,
-    init_ptr: *const u8,
-) callconv(.C) void {
-    // unused
-    _ = init_ptr;
-    _ = flux_variance_ptr;
-    _ = spectrum;
-
+fn integrate_lineprofile(
+    comptime T: type,
+    energy: []const f64,
+    flux: []f64,
+    params: Parameters(T),
+) void {
     // do we need to do first time setup?
     var lp = profile orelse blk: {
         setup() catch |e| {
@@ -75,29 +105,15 @@ export fn kerrlineprofile(
         break :blk profile.?;
     };
 
-    const N = @intCast(usize, n_flux);
-    // convert to slices
-    const energy = @ptrCast([*]const f64, energy_ptr)[0 .. N + 1];
-    var flux = @ptrCast([*]f64, flux_ptr)[0..N];
-    var pslice = @ptrCast([*]const f64, parameters_ptr)[0..NMODELPARAMS];
-
-    // stack allocate
-    var parameters: [NMODELPARAMS]f32 = undefined;
-
-    // a, incl, Eline
-    for (0..NMODELPARAMS) |i| parameters[i] = @floatCast(f32, pslice[i]);
-
-    // convert inclination to mu
-    parameters[1] = @cos(std.math.degreesToRadians(f32, parameters[1]));
-
-    // refine our grid
-    refine_grid(f32, energy, parameters[2]);
+    // refine our grids
+    refine_grid(T, energy, params.eline);
+    set_radial_grid(T, params.rmin, params.rmax);
 
     // zero the flux cache
     for (flux_cache) |*f| f.* = 0;
 
     // do the integration
-    var itf = lp.interpolate_parameters(parameters[0..NPARAMS].*);
+    var itf = lp.interpolate_parameters(params.table_parameters());
     itf.integrate(r_grid, g_grid, flux_cache);
 
     // rebin for output
@@ -119,4 +135,28 @@ export fn kerrlineprofile(
     }
     // normalize output by area
     util.normalize(f64, flux);
+}
+
+export fn kerrlineprofile(
+    // all inputs are double precision
+    energy_ptr: *const f64,
+    n_flux: c_int,
+    parameters_ptr: *const f64,
+    spectrum: c_int,
+    flux_ptr: *f64,
+    flux_variance_ptr: *f64,
+    init_ptr: *const u8,
+) callconv(.C) void {
+    // unused
+    _ = init_ptr;
+    _ = flux_variance_ptr;
+    _ = spectrum;
+
+    const N = @intCast(usize, n_flux);
+    // convert to slices
+    const energy = @ptrCast([*]const f64, energy_ptr)[0 .. N + 1];
+    var flux = @ptrCast([*]f64, flux_ptr)[0..N];
+
+    var parameters = Parameters(f32).from_ptr(parameters_ptr);
+    integrate_lineprofile(f32, energy, flux, parameters);
 }
