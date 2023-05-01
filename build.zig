@@ -22,14 +22,15 @@ pub fn build(b: *std.Build) void {
         zigfitsio.link(xspec);
         b.installArtifact(xspec);
     } else {
-        const lib = b.addStaticLibrary(.{
-            .name = "lineprofiles",
-            .root_source_file = .{ .path = "src/main.zig" },
+        const xspec = b.addSharedLibrary(.{
+            .name = "xslineprofiles",
+            .root_source_file = .{ .path = "src/xspec-wrapper.zig" },
             .target = target,
             .optimize = optimize,
+            .version = .{ .major = 0, .minor = 2 },
         });
-        zigfitsio.link(lib);
-        b.installArtifact(lib);
+        zigfitsio.link(xspec);
+        b.installArtifact(xspec);
     }
 
     // create a temporary executable
