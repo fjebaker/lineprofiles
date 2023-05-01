@@ -52,7 +52,7 @@ fn set_radial_grid(comptime T: type, rmin: T, rmax: T) void {
 }
 
 fn setup() !void {
-    profile = try io.readFitsFile(NPARAMS, f32, MODELPATH, allocator);
+    profile = try io.readFitsFile(NPARAMS, f32, 30, MODELPATH, allocator);
     errdefer profile.?.deinit();
 
     std.debug.print(
@@ -61,7 +61,7 @@ fn setup() !void {
     );
 
     // build r grid
-    r_grid = try util.inverse_grid(f32, allocator, 3.0, 50.0, 2000);
+    r_grid = try util.inverse_grid(f32, allocator, 3.0, 50.0, 1000);
     errdefer allocator.free(r_grid);
 
     // build some g grid, it will be refined anyway

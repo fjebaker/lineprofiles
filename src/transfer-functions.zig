@@ -111,6 +111,7 @@ pub fn TransferFunction(comptime T: type) type {
 pub fn InterpolatingTransferFunction(comptime T: type) type {
     return struct {
         const Self = @This();
+        const H = util.H;
         // points to a cached branch
         tf: *TransferFunction(T),
         // cache of the current row of the data
@@ -118,8 +119,8 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
         cache_lower: []T,
         cache_gmin: T = 0,
         cache_gmax: T = 0,
-        // we don't own these, they are referenced from
-        // the parent
+
+        // referenced from parent
         gstars: []const T,
         // store the last high indices for cached searches
         last_r_index: usize = 0,
@@ -248,12 +249,12 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             allocator.free(self.cache_lower);
         }
 
-        fn integrand2(self: *const Self, g: T, gstar: T) T {
+        inline fn integrand2(self: *const Self, g: T, gstar: T) T {
             const fs = self.branches_at_gstar(gstar);
             // combine the branches
             const f = fs.upper + fs.lower;
             const denom = std.math.sqrt(gstar * (1 - gstar)) * (self.cache_gmax - self.cache_gmin);
-            return f * std.math.pi * std.math.pow(T, g, 3) / denom;
+            return f * std.math.pow(T, g, 3) / denom;
         }
 
         fn integrand(self: *const Self, g: T) T {
@@ -267,9 +268,7 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             g_grid: []const T,
             flux: []T,
         ) void {
-            for (0..r_grid.len) |i| {
-                const r = r_grid[i];
-
+            for (r_grid, 0..) |r, i| {
                 // check if radius is defined in the transfer table
                 if (r < self.tf.radii[self.tf.radii.len - 1]) {
                     // radius too small
@@ -280,13 +279,15 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
                     continue;
                 }
 
+                // interpolate transfer function
+                self.stage_radius(r);
+
                 // TODO: toy emissivity model
                 const emissivity = std.math.pow(T, r, -3);
 
                 const dr = Integrator.trapezoid_integration_weight(T, r_grid, i);
-                const weight = dr * r * emissivity;
+                const weight = dr * r * emissivity * std.math.pi;
 
-                self.stage_radius(r);
                 self.integrate_transfer_function(g_grid, flux, weight);
             }
         }
@@ -299,15 +300,18 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
         ) void {
             // assert dimensions are correct
             std.debug.assert(g_grid.len == out.len + 1);
-            for (0..g_grid.len - 1) |i| {
+
+            for (0..out.len) |i| {
                 const a = g_grid[i];
                 const b = g_grid[i + 1];
-                out[i] += self.integrate_g_bin(a, b) * weight;
-                if (std.math.isNan(out[i]) or std.math.isInf(out[i])) {
+                const val = self.integrate_g_bin(a, b) * weight;
+
+                // sanity check
+                if (std.math.isNan(val) or std.math.isInf(val)) {
                     std.debug.print(
                         "{d} hit at r={d} for [a,b] = [{d},{d}] (nb: healthy is a < b)\n",
                         .{
-                            out[i],
+                            val,
                             self.current_r,
                             a,
                             b,
@@ -315,29 +319,22 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
                     );
                     @panic("END");
                 }
+
+                // sum total in ith bin
+                out[i] += val;
             }
         }
 
-        fn integrate_edge(
+        inline fn integrate_edge(
             self: *const Self,
             lim: T,
             lim_star: T,
         ) T {
             const k = util.gstar_to_g(lim_star, self.cache_gmin, self.cache_gmax);
             const w = @fabs(std.math.sqrt(k) - std.math.sqrt(lim));
-            const flux = 2 * w * self.integrand(k);
-            return flux;
+            return 2 * w * self.integrand(k) * std.math.sqrt(H) * (self.cache_gmax - self.cache_gmin);
         }
 
-        inline fn integrate_inner_bin(
-            self: *const Self,
-            a: T,
-            b: T,
-        ) T {
-            return Integrator.integrate_kronrod(T, self, integrand, a, b);
-        }
-
-        const H = 1e-4;
         fn integrate_g_bin(
             self: *const Self,
             low: T,
@@ -381,7 +378,7 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             }
 
             // integrate everything that isn't edge
-            flux += self.integrate_inner_bin(glow, ghigh);
+            flux += Integrator.integrate_gauss(T, self, integrand, glow, ghigh);
             return flux;
         }
     };

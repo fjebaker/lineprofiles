@@ -222,16 +222,17 @@ pub fn refine_grid(comptime T: type, grid: anytype, fine_grid: []T, N: usize, no
     // edge in grid
 }
 
-const RELLINE_N_GSTAR = 20;
-pub fn relline_gstar_grid(comptime T: type) [RELLINE_N_GSTAR]T {
-    const h = 2e-3;
-    const g1 = h;
-    const g2 = 1.0 - h;
-    var grid: [20]T = undefined;
+pub const H = 1e-3;
+pub fn gstar_grid(comptime T: type, comptime N: comptime_int) [N]T {
+    const g1 = H;
+    const g2 = 1.0 - H;
+    var grid: [N]T = undefined;
 
-    const factor = (g2 - g1) / @intToFloat(T, (RELLINE_N_GSTAR - 1));
+    var itt = RangeIterator(T).init(g1, g2, N);
     for (0..grid.len) |i| {
-        grid[i] = g1 + factor * @intToFloat(T, i);
+        const v = itt.next().?;
+        grid[i] = v;
     }
+
     return grid;
 }

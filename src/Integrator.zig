@@ -94,9 +94,11 @@ pub fn trapezoid_integration_weight(
     domain: []const T,
     index: usize,
 ) T {
+    // first index
     if (index == 0) {
         return domain[1] - domain[0];
     }
+    // last index
     if (index == domain.len - 1) {
         return domain[index] - domain[index - 1];
     }

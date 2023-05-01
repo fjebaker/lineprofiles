@@ -53,6 +53,7 @@ pub fn readTransferFunctions(
 pub fn readFitsFile(
     comptime NParams: comptime_int,
     comptime T: type,
+    comptime Ngstar: comptime_int,
     path: []const u8,
     allocator: std.mem.Allocator,
 ) !lineprof.LineProfileTable(NParams, T) {
@@ -68,7 +69,7 @@ pub fn readFitsFile(
     var angle = try incl.BinaryTable.getColumnTyped(T, 1, allocator, .{});
     errdefer allocator.free(angle);
 
-    var gstars = try allocator.dupe(T, &util.relline_gstar_grid(T));
+    var gstars = try allocator.dupe(T, &util.gstar_grid(T, Ngstar));
     errdefer allocator.free(gstars);
 
     // unpack the list
