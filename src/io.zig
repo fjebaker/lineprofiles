@@ -19,7 +19,7 @@ pub fn readTransferFunctions(
     errdefer for (list.items) |*tf| tf.free(allocator);
 
     // read in all of the transfer function data
-    for (offset..f.num_hdus) |i| {
+    for (offset..f.num_hdus + 1) |i| {
         const table = (try f.getHDU(i)).BinaryTable;
 
         var upper_f = try table.getColumnVectorTyped(DataType, 4, allocator);
