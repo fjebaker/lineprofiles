@@ -1,11 +1,6 @@
 const std = @import("std");
-
 const zigFITSTIO = @import("./vendor/zigFITSIO/zigFITSIO.zig");
 
-const HEADER_PATH = "include";
-// Although this function looks imperative, note that its job is to
-// declaratively construct a build graph that will be executed by an external
-// runner.
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -27,7 +22,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = .{ .path = "src/xspec-wrapper.zig" },
             .target = target,
             .optimize = optimize,
-            .version = .{ .major = 0, .minor = 2 },
+            .version = .{ .major = 0, .minor = 1 },
         });
         zigfitsio.link(xspec);
         b.installArtifact(xspec);
