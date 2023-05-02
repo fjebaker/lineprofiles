@@ -12,14 +12,17 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
         const TFunc = xfunc.TransferFunction(T);
 
         allocator: std.mem.Allocator,
+
         // the transfer function data maps g* -> f for different radii
         // these must be the same for all tables of data
         // if data for a specific radius does not exist, it is zeroed
         gstars: []T,
+
         // there is a matrix of values for each parameter combination
         // there will be Np1 * Np2 * ... * Npn many frames, scaling with the
         // number of parameters, and how its been interpolated
         transfer_functions: []TFunc,
+
         // we store one array for each parameter with all of its values
         parameters: [NParams][]T,
         n_parameters: [NParams]usize,
@@ -31,11 +34,13 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
         // we'll just have to reinterpoalte, and can save the parameter lookup.
         last_upper_frame: [2 * NParams]usize = .{0} ** (2 * NParams),
         last_lower_frame: [2 * NParams]usize = .{0} ** (2 * NParams),
+
         // that does also mean we store the parameters which strided the last used
         // frames, such that the needed parameters P are
         //       last_upper_parameters >= P >= last_lower_parameters
         // which means we need 2 frames pointers for each parameter
         last_lower_parameters: [NParams]usize = .{0} ** NParams,
+
         // last_upper_parameters is implied as last_lower_parameters[i] + 1
 
         // then, when we receive some new parameters, we can optimize the search for
@@ -48,11 +53,11 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
         interpolated_cache: []xfunc.TransferFunction(T),
         interpolated_transfer_function: InterpolatingTransferFunction(T),
 
-        /// Conver the indices of the parameters to an index that may be used
+        /// Convert the indices of the parameters to an index that may be used
         /// to fetch the corresponding transfer function from `self.transfer_functions`
         /// For parameters p,q, it assumes the table is laid out as
         ///   (p1, q1), (p1, q2), ... (p1, qn), (p2, q1), (p2, q2), ...
-        fn parameter_indices_to_table_index(self: *const Self, param_indices: [NParams]usize) usize {
+        pub fn parameter_indices_to_table_index(self: *const Self, param_indices: [NParams]usize) usize {
             var index: usize = 0;
             for (0..NParams) |i| {
                 const stride: usize = if (i < NParams - 1)
@@ -62,6 +67,29 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
                 index += param_indices[i] * stride;
             }
             return index;
+        }
+
+        pub fn find_parameter_indices(self: *Self, parameters: [NParams]T) [NParams]usize {
+            var base_indices: [NParams]usize = undefined;
+            for (0..NParams) |i| {
+                const last_i = self.last_lower_parameters[i];
+
+                // todo: parameters are probably going to be pretty close to eachother
+                // so might be better to switch the direction of search given the last
+                // one, instead of looping back to 0 if it's less than
+                const search_up = parameters[i] >= self.parameters[i][last_i];
+
+                const start = if (search_up) last_i else 0;
+                const new_i = util.find_first_geq(
+                    T,
+                    self.parameters[i],
+                    parameters[i],
+                    start,
+                );
+
+                base_indices[i] = if (new_i) |vi| vi.index else 0;
+            }
+            return base_indices;
         }
 
         /// Multi-linear interpolation of the parameters. Interpolates first in
@@ -89,22 +117,7 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
             self: *Self,
             parameters: [NParams]T,
         ) InterpolatingTransferFunction(T) {
-            var base_indices: [NParams]usize = undefined;
-            for (0..NParams) |i| {
-                const last_i = self.last_lower_parameters[i];
-                // todo: parameters are probably going to be pretty close to eachother
-                // so might be better to switch the direction of search given the last
-                // one, instead of looping back to 0 if it's less than
-                const search_up = parameters[i] >= self.parameters[i][last_i];
-                const start = if (search_up) last_i else 0;
-                const new_i = util.find_first_geq(
-                    T,
-                    self.parameters[i],
-                    parameters[i],
-                    start,
-                );
-                base_indices[i] = if (new_i) |vi| vi.index else 0;
-            }
+            const base_indices = self.find_parameter_indices(parameters);
 
             // find which tables we are interpolating between
             const table_indices = self.find_tables(base_indices);
@@ -138,21 +151,21 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
                     self.interpolate(
                         &self.transfer_functions[table_indices[0]],
                         &self.transfer_functions[table_indices[1]],
-                        weights[1],
+                        weights[0],
                         0,
                     );
                     // then (p1,q0) to (p1,q1)
                     self.interpolate(
                         &self.transfer_functions[table_indices[2]],
                         &self.transfer_functions[table_indices[3]],
-                        weights[1],
+                        weights[0],
                         1,
                     );
                     // and then between those two
                     self.interpolate(
-                        &self.interpolated_cache[0],
                         &self.interpolated_cache[1],
-                        weights[0],
+                        &self.interpolated_cache[0],
+                        weights[1],
                         0,
                     );
                 },
@@ -180,7 +193,12 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
             }
         }
 
-        fn determine_parameter_weight(self: *const Self, parameters: []const T, parameter_index: usize, index: usize) ?T {
+        pub fn determine_parameter_weight(
+            self: *const Self,
+            parameters: []const T,
+            parameter_index: usize,
+            index: usize,
+        ) ?T {
             // no interpolation needs to happen here
             if (index == 0) return null;
             const p0 = self.parameters[parameter_index][index - 1];
@@ -188,36 +206,27 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
             return (parameters[parameter_index] - p0) / (p1 - p0);
         }
 
-        fn find_tables(
+        pub fn find_tables(
             self: *const Self,
             parameter_indices: [NParams]usize,
         ) [NParams * 2]usize {
             // mutable copy of the parameter_indices
             var pindices: [NParams]usize = undefined;
             std.mem.copy(usize, &pindices, &parameter_indices);
+
             // store the table striding the chosen parameter interpolation
             var table_indices: [NParams * 2]usize = undefined;
-            for (0..NParams) |i| {
-                const j = i * 2;
-                // save the index so we can modify it and restore at the end
-                const saved_index = pindices[i];
-                const to_indices =
-                    self.parameter_indices_to_table_index(pindices);
-                if (saved_index > 1) {
-                    // frame above chosen
-                    table_indices[j + 1] = to_indices;
-                    pindices[i] -= 1;
-                    // frame below chosen
-                    table_indices[j] =
-                        self.parameter_indices_to_table_index(pindices);
-                    // restore for the next loop
-                    pindices[i] = saved_index;
-                } else {
-                    // chosen value is at the edge of the parameter space
-                    table_indices[j] = to_indices;
-                    table_indices[j + 1] = to_indices;
-                }
+
+            // TODO: this only works for NParams == 2
+            table_indices[1] = self.parameter_indices_to_table_index(pindices);
+            pindices[0] -|= 1;
+            table_indices[0] = self.parameter_indices_to_table_index(pindices);
+            pindices[1] -|= 1;
+            table_indices[2] = self.parameter_indices_to_table_index(pindices);
+            if (pindices[0] < parameter_indices[0]) {
+                pindices[0] += 1;
             }
+            table_indices[3] = self.parameter_indices_to_table_index(pindices);
             return table_indices;
         }
 
