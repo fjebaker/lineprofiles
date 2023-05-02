@@ -5,7 +5,7 @@ const lineprofile = @import("line-profile.zig");
 
 // number of parameters in the table
 const NPARAMS = 2;
-const MODELPATH = "kerr-transfer-functions.fits";
+const MODELPATH = "./kerr-transfer-functions.fits";
 
 // refinement for the energy grid
 const REFINEMENT = 5;
@@ -61,7 +61,7 @@ fn setup() !void {
     );
 
     // build r grid
-    r_grid = try util.inverse_grid(f32, allocator, 3.0, 50.0, 1000);
+    r_grid = try util.inverse_grid(f32, allocator, 1.0, 50.0, 2000);
     errdefer allocator.free(r_grid);
 
     // build some g grid, it will be refined anyway
@@ -118,6 +118,7 @@ fn integrate_lineprofile(
 
     // rebin for output
     var j: usize = 0;
+    var total_flux: f64 = 0;
     for (0..flux.len) |i| {
         // ensure it is zeroed
         flux[i] = 0;
@@ -132,9 +133,10 @@ fn integrate_lineprofile(
         // normalize to counts per bin
         const e_midpoint = 0.5 * (energy[i + 1] + energy[i]);
         flux[i] = flux[i] / e_midpoint;
+        total_flux += flux[i];
     }
     // normalize output by area
-    util.normalize(f64, flux);
+    for (flux) |*f| f.* /= total_flux;
 }
 
 export fn kerrlineprofile(
@@ -148,15 +150,15 @@ export fn kerrlineprofile(
     init_ptr: *const u8,
 ) callconv(.C) void {
     // unused
-    _ = init_ptr;
-    _ = flux_variance_ptr;
     _ = spectrum;
+    _ = flux_variance_ptr;
+    _ = init_ptr;
 
     const N = @intCast(usize, n_flux);
     // convert to slices
     const energy = @ptrCast([*]const f64, energy_ptr)[0 .. N + 1];
     var flux = @ptrCast([*]f64, flux_ptr)[0..N];
 
-    var parameters = Parameters(f32).from_ptr(parameters_ptr);
+    const parameters = Parameters(f32).from_ptr(parameters_ptr);
     integrate_lineprofile(f32, energy, flux, parameters);
 }
