@@ -222,7 +222,7 @@ pub fn refine_grid(comptime T: type, grid: anytype, fine_grid: []T, N: usize, no
     // edge in grid
 }
 
-pub const H = 1e-3;
+pub const H = 5e-4;
 pub fn gstar_grid(comptime T: type, comptime N: comptime_int) [N]T {
     const g1 = H;
     const g2 = 1.0 - H;
