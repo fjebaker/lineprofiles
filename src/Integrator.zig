@@ -98,12 +98,7 @@ pub fn trapezoid_integration_weight(
     if (index == 0) {
         return domain[1] - domain[0];
     }
-    // last index
-    if (index == domain.len - 1) {
-        return domain[index] - domain[index - 1];
-    }
-    // TODO: check this
-    return domain[index + 1] - domain[index - 1];
+    return domain[index] - domain[index - 1];
 }
 
 // if they are equally spaced
