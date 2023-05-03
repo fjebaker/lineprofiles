@@ -3,6 +3,7 @@ const io = @import("io.zig");
 
 const xfunc = @import("transfer-functions.zig");
 const util = @import("utils.zig");
+const emissivity = @import("emissivity.zig");
 
 const TABLE_FILE = "kerr-transfer-functions.fits";
 
@@ -106,12 +107,16 @@ pub fn integrate(allocator: std.mem.Allocator, filepath: [:0]const u8) !void {
     for (flux2) |*f| f.* = 0;
     for (fflux2) |*f| f.* = 0;
 
-    var params = [2]f32{ 0.998, 0.2 };
+    var params = [2]f32{ 0.998, 0.90 };
     var itf = data.interpolate_parameters(params);
     var itf2 = data2.interpolate_parameters(params);
 
-    itf.integrate(r_grid, fine_grid, fflux1);
-    itf2.integrate(r_grid, fine_grid, fflux2);
+    var fixed_emis = emissivity.StepFunctionEmissivity(f32, 5).init([_]f32{ 1, 0, 0, 0, 0 }, 1.0, 50.0);
+    std.debug.print("bins: {any}\n", .{fixed_emis.cutoffs});
+    const emis = fixed_emis.emissivity();
+
+    itf.integrate(r_grid, fine_grid, fflux1, emis);
+    itf2.integrate(r_grid, fine_grid, fflux2, emis);
 
     var j: usize = 0;
     for (0..flux.len) |i| {

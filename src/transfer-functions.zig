@@ -2,6 +2,7 @@ const std = @import("std");
 const util = @import("utils.zig");
 
 const Integrator = @import("Integrator.zig");
+const Emissivity = @import("emissivity.zig").Emissivity;
 
 pub fn TransferFunction(comptime T: type) type {
     return struct {
@@ -112,9 +113,12 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
     return struct {
         const Self = @This();
         const H = util.H;
-        // points to a cached branch
+
+        // points to a cached branch over which the interpolation is performed
         tf: *TransferFunction(T),
-        // cache of the current row of the data
+
+        // cache of the current row of the data; namely, cache of the upper and lower branches
+        // as we iterate over r
         cache_upper: []T,
         cache_lower: []T,
         cache_gmin: T = 0,
@@ -267,6 +271,7 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             r_grid: []const T,
             g_grid: []const T,
             flux: []T,
+            emis: Emissivity(T),
         ) void {
             for (r_grid, 0..) |r, i| {
                 // check if radius is defined in the transfer table
@@ -283,7 +288,7 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
                 self.stage_radius(r);
 
                 // TODO: toy emissivity model
-                const emissivity = std.math.pow(T, r, -3);
+                const emissivity = emis.call(r);
 
                 const dr = Integrator.trapezoid_integration_weight(T, r_grid, i);
                 const weight = dr * r * emissivity * std.math.pi;

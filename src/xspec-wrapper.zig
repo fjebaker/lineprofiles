@@ -2,6 +2,7 @@ const std = @import("std");
 const io = @import("io.zig");
 const util = @import("utils.zig");
 const lineprofile = @import("line-profile.zig");
+const emissivity = @import("emissivity.zig");
 
 // number of parameters in the table
 const NPARAMS = 2;
@@ -17,35 +18,6 @@ var profile: ?lineprofile.LineProfileTable(NPARAMS, f32) = null;
 var g_grid: []f32 = undefined;
 var r_grid: []f32 = undefined;
 var flux_cache: []f32 = undefined;
-
-fn Parameters(comptime T: type) type {
-    return struct {
-        const Self = @This();
-        a: T,
-        inclination: T,
-        eline: T,
-        rmin: T,
-        rmax: T,
-        pub fn from_ptr(ptr: *const f64) Parameters(T) {
-            const N = @typeInfo(Self).Struct.fields.len;
-            var slice = @ptrCast([*]const f64, ptr)[0..N];
-            return .{
-                .a = @floatCast(T, slice[0]),
-                // convert to cos(i)
-                .inclination = @cos(std.math.degreesToRadians(
-                    T,
-                    @floatCast(T, slice[1]),
-                )),
-                .eline = @floatCast(T, slice[2]),
-                .rmin = @floatCast(T, slice[3]),
-                .rmax = @floatCast(T, slice[4]),
-            };
-        }
-        pub fn table_parameters(self: Self) [NPARAMS]T {
-            return [_]T{ self.a, self.inclination };
-        }
-    };
-}
 
 fn set_radial_grid(comptime T: type, rmin: T, rmax: T) void {
     util.inverse_grid_inplace(T, r_grid, rmin, rmax);
@@ -94,7 +66,8 @@ fn integrate_lineprofile(
     comptime T: type,
     energy: []const f64,
     flux: []f64,
-    params: Parameters(T),
+    params: anytype,
+    emis: emissivity.Emissivity(T),
 ) void {
     // do we need to do first time setup?
     var lp = profile orelse blk: {
@@ -114,7 +87,7 @@ fn integrate_lineprofile(
 
     // do the integration
     var itf = lp.interpolate_parameters(params.table_parameters());
-    itf.integrate(r_grid, g_grid, flux_cache);
+    itf.integrate(r_grid, g_grid, flux_cache, emis);
 
     // rebin for output
     var j: usize = 0;
@@ -139,6 +112,37 @@ fn integrate_lineprofile(
     for (flux) |*f| f.* /= total_flux;
 }
 
+// model definitions
+
+fn Parameters(comptime T: type) type {
+    return struct {
+        const Self = @This();
+        a: T,
+        inclination: T,
+        eline: T,
+        rmin: T,
+        rmax: T,
+        pub fn from_ptr(ptr: *const f64) Parameters(T) {
+            const N = @typeInfo(Self).Struct.fields.len;
+            var slice = @ptrCast([*]const f64, ptr)[0..N];
+            return .{
+                .a = @floatCast(T, slice[0]),
+                // convert to cos(i)
+                .inclination = @cos(std.math.degreesToRadians(
+                    T,
+                    @floatCast(T, slice[1]),
+                )),
+                .eline = @floatCast(T, slice[2]),
+                .rmin = @floatCast(T, slice[3]),
+                .rmax = @floatCast(T, slice[4]),
+            };
+        }
+        pub fn table_parameters(self: Self) [NPARAMS]T {
+            return [_]T{ self.a, self.inclination };
+        }
+    };
+}
+
 export fn kerrlineprofile(
     // all inputs are double precision
     energy_ptr: *const f64,
@@ -160,5 +164,155 @@ export fn kerrlineprofile(
     var flux = @ptrCast([*]f64, flux_ptr)[0..N];
 
     const parameters = Parameters(f32).from_ptr(parameters_ptr);
-    integrate_lineprofile(f32, energy, flux, parameters);
+    var fixed_emis = emissivity.PowerLawEmissivity(f32).init(-3);
+
+    integrate_lineprofile(f32, energy, flux, parameters, fixed_emis.emissivity());
+}
+
+fn StepEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
+    return struct {
+        const Self = @This();
+        a: T,
+        inclination: T,
+        eline: T,
+        rmin: T,
+        rmax: T,
+        weights: [Nbins]T,
+
+        pub fn from_ptr(ptr: *const f64) Self {
+            const N = 5 + Nbins;
+            var slice = @ptrCast([*]const f64, ptr)[0..N];
+
+            // read in the emissivity weights
+            var weights: [Nbins]T = undefined;
+            for (slice[5..], 0..) |w, i| {
+                weights[i] = @floatCast(T, w);
+            }
+
+            return .{
+                .a = @floatCast(T, slice[0]),
+                // convert to cos(i)
+                .inclination = @cos(std.math.degreesToRadians(
+                    T,
+                    @floatCast(T, slice[1]),
+                )),
+                .eline = @floatCast(T, slice[2]),
+                .rmin = @floatCast(T, slice[3]),
+                .rmax = @floatCast(T, slice[4]),
+                .weights = weights,
+            };
+        }
+        pub fn table_parameters(self: Self) [NPARAMS]T {
+            return [_]T{ self.a, self.inclination };
+        }
+    };
+}
+
+inline fn kerrstepemisN(
+    comptime Nemis: comptime_int,
+    energy_ptr: *const f64,
+    n_flux: c_int,
+    parameters_ptr: *const f64,
+    spectrum: c_int,
+    flux_ptr: *f64,
+    flux_variance_ptr: *f64,
+    init_ptr: *const u8,
+) void {
+    // unused
+    _ = spectrum;
+    _ = flux_variance_ptr;
+    _ = init_ptr;
+
+    const N = @intCast(usize, n_flux);
+    // convert to slices
+    const energy = @ptrCast([*]const f64, energy_ptr)[0 .. N + 1];
+    var flux = @ptrCast([*]f64, flux_ptr)[0..N];
+
+    const parameters = StepEmisParameters(f32, Nemis).from_ptr(parameters_ptr);
+    var fixed_emis = emissivity.StepFunctionEmissivity(f32, Nemis).init(parameters.weights, parameters.rmin, parameters.rmax);
+    integrate_lineprofile(f32, energy, flux, parameters, fixed_emis.emissivity());
+}
+
+export fn kerrstepemis4(
+    energy_ptr: *const f64,
+    n_flux: c_int,
+    parameters_ptr: *const f64,
+    spectrum: c_int,
+    flux_ptr: *f64,
+    flux_variance_ptr: *f64,
+    init_ptr: *const u8,
+) callconv(.C) void {
+    return kerrstepemisN(4, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
+}
+
+export fn kerrstepemis5(
+    energy_ptr: *const f64,
+    n_flux: c_int,
+    parameters_ptr: *const f64,
+    spectrum: c_int,
+    flux_ptr: *f64,
+    flux_variance_ptr: *f64,
+    init_ptr: *const u8,
+) callconv(.C) void {
+    return kerrstepemisN(5, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
+}
+
+export fn kerrstepemis6(
+    energy_ptr: *const f64,
+    n_flux: c_int,
+    parameters_ptr: *const f64,
+    spectrum: c_int,
+    flux_ptr: *f64,
+    flux_variance_ptr: *f64,
+    init_ptr: *const u8,
+) callconv(.C) void {
+    return kerrstepemisN(6, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
+}
+
+export fn kerrstepemis7(
+    energy_ptr: *const f64,
+    n_flux: c_int,
+    parameters_ptr: *const f64,
+    spectrum: c_int,
+    flux_ptr: *f64,
+    flux_variance_ptr: *f64,
+    init_ptr: *const u8,
+) callconv(.C) void {
+    return kerrstepemisN(7, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
+}
+
+export fn kerrstepemis8(
+    energy_ptr: *const f64,
+    n_flux: c_int,
+    parameters_ptr: *const f64,
+    spectrum: c_int,
+    flux_ptr: *f64,
+    flux_variance_ptr: *f64,
+    init_ptr: *const u8,
+) callconv(.C) void {
+    return kerrstepemisN(8, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
+}
+
+export fn kerrstepemis9(
+    energy_ptr: *const f64,
+    n_flux: c_int,
+    parameters_ptr: *const f64,
+    spectrum: c_int,
+    flux_ptr: *f64,
+    flux_variance_ptr: *f64,
+    init_ptr: *const u8,
+) callconv(.C) void {
+    return kerrstepemisN(9, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
+}
+
+export fn kerrstepemis10(
+    energy_ptr: *const f64,
+    n_flux: c_int,
+    parameters_ptr: *const f64,
+    spectrum: c_int,
+    flux_ptr: *f64,
+    flux_variance_ptr: *f64,
+    init_ptr: *const u8,
+) callconv(.C) void {
+    return kerrstepemisN(10, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
 }
