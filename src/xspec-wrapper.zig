@@ -67,7 +67,7 @@ fn integrate_lineprofile(
     energy: []const f64,
     flux: []f64,
     params: anytype,
-    emis: emissivity.Emissivity(T),
+    emis: anytype,
 ) void {
     // do we need to do first time setup?
     var lp = profile orelse blk: {
@@ -164,9 +164,9 @@ export fn kerrlineprofile(
     var flux = @ptrCast([*]f64, flux_ptr)[0..N];
 
     const parameters = Parameters(f32).from_ptr(parameters_ptr);
-    var fixed_emis = emissivity.PowerLawEmissivity(f32).init(-3);
+    const fixed_emis = emissivity.PowerLawEmissivity(f32).init(-3);
 
-    integrate_lineprofile(f32, energy, flux, parameters, fixed_emis.emissivity());
+    integrate_lineprofile(f32, energy, flux, parameters, fixed_emis);
 }
 
 fn StepEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
@@ -229,8 +229,8 @@ inline fn kerrstepemisN(
     var flux = @ptrCast([*]f64, flux_ptr)[0..N];
 
     const parameters = StepEmisParameters(f32, Nemis).from_ptr(parameters_ptr);
-    var fixed_emis = emissivity.StepFunctionEmissivity(f32, Nemis).init(parameters.weights, parameters.rmin, parameters.rmax);
-    integrate_lineprofile(f32, energy, flux, parameters, fixed_emis.emissivity());
+    const step_emis = emissivity.StepFunctionEmissivity(f32, Nemis).init(parameters.weights, parameters.rmin, parameters.rmax);
+    integrate_lineprofile(f32, energy, flux, parameters, step_emis);
 }
 
 export fn kerrstepemis4(

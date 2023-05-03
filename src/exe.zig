@@ -111,11 +111,10 @@ pub fn integrate(allocator: std.mem.Allocator, filepath: [:0]const u8) !void {
     var itf = data.interpolate_parameters(params);
     var itf2 = data2.interpolate_parameters(params);
 
-    var fixed_emis = emissivity.StepFunctionEmissivity(f32, 5).init([_]f32{ 1, 0, 0, 0, 0 }, 1.0, 50.0);
-    std.debug.print("bins: {any}\n", .{fixed_emis.cutoffs});
-    const emis = fixed_emis.emissivity();
-
+    const emis = emissivity.PowerLawEmissivity(f32).init(-3.0);
+    std.debug.print("Start.\n", .{});
     itf.integrate(r_grid, fine_grid, fflux1, emis);
+    std.debug.print("Finished.\n", .{});
     itf2.integrate(r_grid, fine_grid, fflux2, emis);
 
     var j: usize = 0;
