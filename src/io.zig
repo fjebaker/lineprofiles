@@ -14,7 +14,7 @@ pub fn readTransferFunctions(
 ) ![]xfunc.TransferFunction(T) {
     if (T != DataType) @compileError("Type mistmatch.");
 
-    var list = try std.ArrayList(xfunc.TransferFunction(T)).initCapacity(allocator, f.num_hdus - offset);
+    var list = try std.ArrayList(xfunc.TransferFunction(T)).initCapacity(allocator, f.num_hdus - offset + 1);
     errdefer list.deinit();
     errdefer for (list.items) |*tf| tf.free(allocator);
 
