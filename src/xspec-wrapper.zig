@@ -169,7 +169,7 @@ export fn kerrlineprofile(
     integrate_lineprofile(f32, energy, flux, parameters, fixed_emis);
 }
 
-fn StepEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
+fn LinEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
     return struct {
         const Self = @This();
         a: T,
@@ -177,15 +177,17 @@ fn StepEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
         eline: T,
         rmin: T,
         rmax: T,
+        rcutoff: T,
+        alpha: T,
         weights: [Nbins]T,
 
         pub fn from_ptr(ptr: *const f64) Self {
-            const N = 5 + Nbins;
+            const N = 7 + Nbins;
             var slice = @ptrCast([*]const f64, ptr)[0..N];
 
             // read in the emissivity weights
             var weights: [Nbins]T = undefined;
-            for (slice[5..], 0..) |w, i| {
+            for (slice[7..], 0..) |w, i| {
                 weights[i] = @floatCast(T, w);
             }
 
@@ -199,6 +201,8 @@ fn StepEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
                 .eline = @floatCast(T, slice[2]),
                 .rmin = @floatCast(T, slice[3]),
                 .rmax = @floatCast(T, slice[4]),
+                .rcutoff = @floatCast(T, slice[5]),
+                .alpha = @floatCast(T, slice[6]),
                 .weights = weights,
             };
         }
@@ -208,7 +212,7 @@ fn StepEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
     };
 }
 
-inline fn kerrstepemisN(
+inline fn kerrlinemisN(
     comptime Nemis: comptime_int,
     energy_ptr: *const f64,
     n_flux: c_int,
@@ -228,12 +232,12 @@ inline fn kerrstepemisN(
     const energy = @ptrCast([*]const f64, energy_ptr)[0 .. N + 1];
     var flux = @ptrCast([*]f64, flux_ptr)[0..N];
 
-    const parameters = StepEmisParameters(f32, Nemis).from_ptr(parameters_ptr);
-    const step_emis = emissivity.StepFunctionEmissivity(f32, Nemis).init(parameters.weights, parameters.rmin, parameters.rmax);
-    integrate_lineprofile(f32, energy, flux, parameters, step_emis);
+    const parameters = LinEmisParameters(f32, Nemis).from_ptr(parameters_ptr);
+    const lin_emis = emissivity.LinInterpEmissivity(f32, Nemis).init(parameters.weights, parameters.rmin, parameters.rmax, parameters.alpha);
+    integrate_lineprofile(f32, energy, flux, parameters, lin_emis);
 }
 
-export fn kerrstepemis4(
+export fn kerrlinemis5(
     energy_ptr: *const f64,
     n_flux: c_int,
     parameters_ptr: *const f64,
@@ -242,77 +246,5 @@ export fn kerrstepemis4(
     flux_variance_ptr: *f64,
     init_ptr: *const u8,
 ) callconv(.C) void {
-    return kerrstepemisN(4, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
-}
-
-export fn kerrstepemis5(
-    energy_ptr: *const f64,
-    n_flux: c_int,
-    parameters_ptr: *const f64,
-    spectrum: c_int,
-    flux_ptr: *f64,
-    flux_variance_ptr: *f64,
-    init_ptr: *const u8,
-) callconv(.C) void {
-    return kerrstepemisN(5, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
-}
-
-export fn kerrstepemis6(
-    energy_ptr: *const f64,
-    n_flux: c_int,
-    parameters_ptr: *const f64,
-    spectrum: c_int,
-    flux_ptr: *f64,
-    flux_variance_ptr: *f64,
-    init_ptr: *const u8,
-) callconv(.C) void {
-    return kerrstepemisN(6, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
-}
-
-export fn kerrstepemis7(
-    energy_ptr: *const f64,
-    n_flux: c_int,
-    parameters_ptr: *const f64,
-    spectrum: c_int,
-    flux_ptr: *f64,
-    flux_variance_ptr: *f64,
-    init_ptr: *const u8,
-) callconv(.C) void {
-    return kerrstepemisN(7, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
-}
-
-export fn kerrstepemis8(
-    energy_ptr: *const f64,
-    n_flux: c_int,
-    parameters_ptr: *const f64,
-    spectrum: c_int,
-    flux_ptr: *f64,
-    flux_variance_ptr: *f64,
-    init_ptr: *const u8,
-) callconv(.C) void {
-    return kerrstepemisN(8, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
-}
-
-export fn kerrstepemis9(
-    energy_ptr: *const f64,
-    n_flux: c_int,
-    parameters_ptr: *const f64,
-    spectrum: c_int,
-    flux_ptr: *f64,
-    flux_variance_ptr: *f64,
-    init_ptr: *const u8,
-) callconv(.C) void {
-    return kerrstepemisN(9, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
-}
-
-export fn kerrstepemis10(
-    energy_ptr: *const f64,
-    n_flux: c_int,
-    parameters_ptr: *const f64,
-    spectrum: c_int,
-    flux_ptr: *f64,
-    flux_variance_ptr: *f64,
-    init_ptr: *const u8,
-) callconv(.C) void {
-    return kerrstepemisN(10, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
+    return kerrlinemisN(5, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
 }

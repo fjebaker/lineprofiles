@@ -111,7 +111,7 @@ pub fn integrate(allocator: std.mem.Allocator, filepath: [:0]const u8) !void {
     var itf = data.interpolate_parameters(params);
     var itf2 = data2.interpolate_parameters(params);
 
-    const emis = emissivity.PowerLawEmissivity(f32).init(-3.0);
+    const emis = emissivity.LinInterpEmissivity(f32, 5).init([5]f32{ 1e-4, 1e-2, 1e-1, 1e-3, 1e-5 }, 1.0, 50.0, -3.0);
     std.debug.print("Start.\n", .{});
     itf.integrate(r_grid, fine_grid, fflux1, emis);
     std.debug.print("Finished.\n", .{});
@@ -139,6 +139,22 @@ pub fn integrate(allocator: std.mem.Allocator, filepath: [:0]const u8) !void {
     }
 }
 
+fn emission_output(alloc: std.mem.Allocator) !void {
+    const stream = std.io.getStdOut().writer();
+
+    const emis = emissivity.LinInterpEmissivity(f32, 5).init([5]f32{ 1e-4, 1e-2, 1e-1, 1e-3, 1e-5 }, 1.0, 50.0, -3.0);
+    const emis2 = emissivity.PowerLawEmissivity(f32).init(-3.0);
+    var itt = util.RangeIterator(f32).init(1.0, 1000.0, 10_000);
+    var rgrid = try itt.drain(alloc);
+    defer alloc.free(rgrid);
+
+    for (rgrid) |r| {
+        const o = emis.emissivity(r);
+        const o2 = emis2.emissivity(r);
+        try stream.print("{d}\t{d}\t{d}\n", .{ r, o2, o });
+    }
+}
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -147,12 +163,17 @@ pub fn main() !void {
     var args = try std.process.argsAlloc(alloc);
     defer std.process.argsFree(alloc, args);
 
-    var filepath = if (args.len < 2)
-        "kerr-transfer-functions.fits"
-    else
-        args[1];
+    const filepath =
+        "kerr-transfer-functions.fits";
 
     std.debug.print("filepath: {s}\n", .{filepath});
+
+    if (args.len > 1) {
+        if (std.mem.eql(u8, "emis", args[1])) {
+            try emission_output(alloc);
+        }
+        std.os.exit(0);
+    }
 
     // try interpolation_test(alloc);
     try integrate(alloc, filepath);
