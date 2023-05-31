@@ -112,6 +112,128 @@ fn integrate_lineprofile(
     for (flux) |*f| f.* /= total_flux;
 }
 
+const CONVOLUTION_RESOLUTION = 1e-3;
+fn _kerr_convolve(
+    comptime T: type,
+    energy: []const T,
+    flux: []T,
+    parameters: anytype,
+    emis: anytype,
+) !void {
+    // build the convolution energy grid
+    var itt = util.RangeIterator(f64).init(
+        CONVOLUTION_RESOLUTION,
+        2.0,
+        @trunc((2.0 - CONVOLUTION_RESOLUTION) / CONVOLUTION_RESOLUTION),
+    );
+    var conv_energy = try itt.drain(allocator);
+    defer allocator.free(conv_energy);
+
+    // temporary flux array
+    var model_flux = try allocator.alloc(f64, conv_energy.len - 1);
+    defer allocator.free(model_flux);
+
+    // invoke the model
+    integrate_lineprofile(f32, conv_energy, model_flux, parameters, emis);
+
+    // shift energy into g
+    var gs = try allocator.alloc(f64, energy.len);
+    defer allocator.free(gs);
+
+    var flux_copy = try allocator.dupe(f64, flux);
+    defer allocator.free(flux_copy);
+
+    _convolve(f64, flux, conv_energy, model_flux, energy, flux_copy);
+}
+
+fn kerr_convolve(
+    comptime T: type,
+    energy: []const T,
+    flux: []T,
+    parameters: anytype,
+    emis: anytype,
+) void {
+    _kerr_convolve(T, energy, flux, parameters, emis) catch |e| {
+        std.debug.print("kerrlineprofile: ERR: {any}\n", .{e});
+        @panic("kerrlineprofile: fatal error");
+    };
+}
+
+/// convolves a and b on domains g and x respectively by rebinning
+/// if necessary, assumes output is on domain x
+pub fn _convolve(
+    comptime T: type,
+    output: []T,
+    g: []const T,
+    a: []const T,
+    x: []const T,
+    b: []const T,
+) void {
+    std.debug.assert(output.len == b.len);
+
+    // find window of non-zero
+    const window_start = blk: {
+        for (0..a.len) |i| if (a[i] > 0)
+            break :blk if (i > 0) i - 1 else i;
+        break :blk 0;
+    };
+    const window_end = blk: {
+        for (0..a.len) |i| {
+            const j = a.len - i - 1;
+            if (a[j] > 0)
+                break :blk if (j < a.len - 1) j + 1 else j;
+        }
+        break :blk 0;
+    };
+
+    const g_min = g[window_start];
+    const g_max = g[window_end];
+
+    for (0..output.len) |i| {
+        output[i] = 0;
+        const avg = 2 / (x[i + 1] + x[i]);
+        for (0..b.len) |j| {
+            // output bin extremes
+            const low = x[j] * avg;
+            const high = x[j + 1] * avg;
+
+            // skip if outside of the window
+            if (high < g_min or low > g_max) continue;
+
+            // integrate the window
+            for (window_start..window_end) |w| {
+                const bin_low = g[w];
+                const bin_high = g[w + 1];
+
+                // check different cases
+                // 1. check if bin is not in output bin
+                //    bin_low |---| bin_high     low |---| high
+                if (bin_low > high or bin_high < low) {
+                    continue;
+                }
+                // 2. check if bin is striding
+                //    bin_low |---| low |.....| bin_high |---| high
+                // or
+                //    low |---| bin_low |.....| high |---| bin_high
+                else if ((bin_low < low and bin_high < high) or
+                    (bin_low > low and bin_high > high))
+                {
+                    // integrate stride
+                    const overlap = @max(low - bin_low, bin_high - high);
+                    output[i] += a[w] * b[j] * overlap;
+                }
+                // 3. check if bin is bigger than output bin
+                //    bin_low |...| low |.....| high |...| bin_high
+                // 4. bin must be contained
+                //    low |---| bin_low |.....| bin_high |---| high
+                else {
+                    output[i] += a[w] * b[j] * CONVOLUTION_RESOLUTION;
+                }
+            }
+        }
+    }
+}
+
 // model definitions
 
 fn Parameters(comptime T: type) type {
@@ -143,7 +265,7 @@ fn Parameters(comptime T: type) type {
     };
 }
 
-export fn kerrlineprofile(
+pub export fn kerr_line_profile(
     // all inputs are double precision
     energy_ptr: *const f64,
     n_flux: c_int,
@@ -167,6 +289,32 @@ export fn kerrlineprofile(
     const fixed_emis = emissivity.PowerLawEmissivity(f32).init(-3);
 
     integrate_lineprofile(f32, energy, flux, parameters, fixed_emis);
+}
+
+pub export fn kerr_conv_profile(
+    // all inputs are double precision
+    energy_ptr: *const f64,
+    n_flux: c_int,
+    parameters_ptr: *const f64,
+    spectrum: c_int,
+    flux_ptr: *f64,
+    flux_variance_ptr: *f64,
+    init_ptr: *const u8,
+) callconv(.C) void {
+    // unused
+    _ = spectrum;
+    _ = flux_variance_ptr;
+    _ = init_ptr;
+
+    const N = @intCast(usize, n_flux);
+    // convert to slices
+    const energy = @ptrCast([*]const f64, energy_ptr)[0 .. N + 1];
+    var flux = @ptrCast([*]f64, flux_ptr)[0..N];
+
+    const parameters = Parameters(f32).from_ptr(parameters_ptr);
+    const fixed_emis = emissivity.PowerLawEmissivity(f32).init(-3);
+
+    kerr_convolve(f64, energy, flux, parameters, fixed_emis);
 }
 
 fn LinEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
@@ -212,7 +360,37 @@ fn LinEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
     };
 }
 
-inline fn kerrlinemisN(
+inline fn kerr_lin_emisN(
+    comptime Nemis: comptime_int,
+    energy_ptr: *const f64,
+    n_flux: c_int,
+    parameters_ptr: *const f64,
+    spectrum: c_int,
+    flux_ptr: *f64,
+    flux_variance_ptr: *f64,
+    init_ptr: *const u8,
+) void {
+    // unused
+    _ = spectrum;
+    _ = flux_variance_ptr;
+    _ = init_ptr;
+
+    const N = @intCast(usize, n_flux);
+    // convert to slices
+    const energy = @ptrCast([*]const f64, energy_ptr)[0 .. N + 1];
+    var flux = @ptrCast([*]f64, flux_ptr)[0..N];
+
+    const parameters = LinEmisParameters(f32, Nemis).from_ptr(parameters_ptr);
+    const lin_emis = emissivity.LinInterpEmissivity(f32, Nemis).init(
+        parameters.weights,
+        parameters.rmin,
+        parameters.rmax,
+        parameters.alpha,
+    );
+    integrate_lineprofile(f32, energy, flux, parameters, lin_emis);
+}
+
+inline fn kerr_conv_emisN(
     comptime Nemis: comptime_int,
     energy_ptr: *const f64,
     n_flux: c_int,
@@ -234,10 +412,11 @@ inline fn kerrlinemisN(
 
     const parameters = LinEmisParameters(f32, Nemis).from_ptr(parameters_ptr);
     const lin_emis = emissivity.LinInterpEmissivity(f32, Nemis).init(parameters.weights, parameters.rmin, parameters.rmax, parameters.alpha);
-    integrate_lineprofile(f32, energy, flux, parameters, lin_emis);
+
+    kerr_convolve(f64, energy, flux, parameters, lin_emis);
 }
 
-export fn kerrlinemis5(
+pub export fn kerr_lin_emis5(
     energy_ptr: *const f64,
     n_flux: c_int,
     parameters_ptr: *const f64,
@@ -246,5 +425,17 @@ export fn kerrlinemis5(
     flux_variance_ptr: *f64,
     init_ptr: *const u8,
 ) callconv(.C) void {
-    return kerrlinemisN(5, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
+    return kerr_lin_emisN(5, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
+}
+
+pub export fn kerr_conv_emis5(
+    energy_ptr: *const f64,
+    n_flux: c_int,
+    parameters_ptr: *const f64,
+    spectrum: c_int,
+    flux_ptr: *f64,
+    flux_variance_ptr: *f64,
+    init_ptr: *const u8,
+) callconv(.C) void {
+    return kerr_conv_emisN(5, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
 }
