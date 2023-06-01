@@ -29,7 +29,7 @@ pub fn build(b: *std.Build) void {
     }
 
     var main_tests = b.addExecutable(.{
-        .name = "test-exe",
+        .name = "plots",
         .root_source_file = .{ .path = "src/test.zig" },
         .target = target,
         .optimize = optimize,
@@ -38,5 +38,7 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("plots", "Create debugging plots");
     const run_step = b.addRunArtifact(main_tests);
+    const ins_step = b.addInstallArtifact(main_tests);
+    test_step.dependOn(&ins_step.step);
     test_step.dependOn(&run_step.step);
 }
