@@ -126,23 +126,10 @@ pub fn main() !void {
     { // additive model
         var setup = try TestSetup.init(allocator, 0.1, 12.0, 300);
         defer setup.deinit();
-        try setup.setParams(&[_]f64{
-            0.9,
-            80,
-            6.4,
-            1.0,
-            50.0,
-            20.0,
-            3.0,
-            5.0,
-            6.0,
-            7.0,
-            8.0,
-            9.0,
-        });
+        try setup.setParams(&[_]f64{ 0.9, 80, 6.4, 1.0, 50.0 });
 
         // init delta flux
-        setup.flux[100] = 1;
+        setup.flux[150] = 1;
         setup.call(xspec.kerr_conv_profile);
         try plotxy(
             allocator,

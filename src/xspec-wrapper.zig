@@ -114,9 +114,8 @@ fn integrate_lineprofile(
 
 const CONVOLUTION_RESOLUTION = 1e-3;
 fn _kerr_convolve(
-    comptime T: type,
-    energy: []const T,
-    flux: []T,
+    energy: []const f64,
+    flux: []f64,
     parameters: anytype,
     emis: anytype,
 ) !void {
@@ -147,13 +146,12 @@ fn _kerr_convolve(
 }
 
 fn kerr_convolve(
-    comptime T: type,
-    energy: []const T,
-    flux: []T,
+    energy: []const f64,
+    flux: []f64,
     parameters: anytype,
     emis: anytype,
 ) void {
-    _kerr_convolve(T, energy, flux, parameters, emis) catch |e| {
+    _kerr_convolve(energy, flux, parameters, emis) catch |e| {
         std.debug.print("kerrlineprofile: ERR: {any}\n", .{e});
         @panic("kerrlineprofile: fatal error");
     };
@@ -189,10 +187,11 @@ pub fn _convolve(
     const g_min = g[window_start];
     const g_max = g[window_end];
 
+    for (output) |*o| o.* = 0;
+
     for (0..output.len) |i| {
-        output[i] = 0;
         const avg = 2 / (x[i + 1] + x[i]);
-        for (0..b.len) |j| {
+        for (0..output.len) |j| {
             // output bin extremes
             const low = x[j] * avg;
             const high = x[j + 1] * avg;
@@ -201,6 +200,7 @@ pub fn _convolve(
             if (high < g_min or low > g_max) continue;
 
             // integrate the window
+            var weight: T = 0;
             for (window_start..window_end) |w| {
                 const bin_low = g[w];
                 const bin_high = g[w + 1];
@@ -208,28 +208,38 @@ pub fn _convolve(
                 // check different cases
                 // 1. check if bin is not in output bin
                 //    bin_low |---| bin_high     low |---| high
-                if (bin_low > high or bin_high < low) {
+                if (bin_high < low) {
                     continue;
+                } else if (bin_low > high) {
+                    break;
                 }
-                // 2. check if bin is striding
+                // 2. check if bin is bigger than output bin
+                //    bin_low |...| low |.....| high |...| bin_high
+                else if (bin_low < low and bin_high > high) {
+                    const width = (high - low);
+                    weight += a[w] * width / (bin_high - bin_low) * width;
+                }
+                // 3. check if bin is striding
                 //    bin_low |---| low |.....| bin_high |---| high
                 // or
                 //    low |---| bin_low |.....| high |---| bin_high
-                else if ((bin_low < low and bin_high < high) or
-                    (bin_low > low and bin_high > high))
-                {
+                else if (bin_low < low and bin_high < high) {
                     // integrate stride
-                    const overlap = @max(low - bin_low, bin_high - high);
-                    output[i] += a[w] * b[j] * overlap;
+                    const width = (bin_high - low);
+                    weight += a[w] * width / (bin_high - bin_low) * width;
+                } else if (bin_low > low and bin_high > high) {
+                    // integrate stride
+                    const width = (high - bin_low);
+                    weight += a[w] * width / (bin_high - bin_low) * width;
                 }
-                // 3. check if bin is bigger than output bin
-                //    bin_low |...| low |.....| high |...| bin_high
                 // 4. bin must be contained
                 //    low |---| bin_low |.....| bin_high |---| high
                 else {
-                    output[i] += a[w] * b[j] * CONVOLUTION_RESOLUTION;
+                    weight += a[w] * CONVOLUTION_RESOLUTION;
                 }
             }
+            // accumulate the dot product
+            output[j] += weight * b[i];
         }
     }
 }
@@ -258,6 +268,11 @@ fn Parameters(comptime T: type) type {
                 .rmin = @floatCast(T, slice[3]),
                 .rmax = @floatCast(T, slice[4]),
             };
+        }
+        pub fn from_ptr_conv(ptr: *const f64) Parameters(T) {
+            var self = Parameters(T).from_ptr(ptr);
+            self.eline = 1.0;
+            return self;
         }
         pub fn table_parameters(self: Self) [NPARAMS]T {
             return [_]T{ self.a, self.inclination };
@@ -311,10 +326,10 @@ pub export fn kerr_conv_profile(
     const energy = @ptrCast([*]const f64, energy_ptr)[0 .. N + 1];
     var flux = @ptrCast([*]f64, flux_ptr)[0..N];
 
-    const parameters = Parameters(f32).from_ptr(parameters_ptr);
+    const parameters = Parameters(f32).from_ptr_conv(parameters_ptr);
     const fixed_emis = emissivity.PowerLawEmissivity(f32).init(-3);
 
-    kerr_convolve(f64, energy, flux, parameters, fixed_emis);
+    kerr_convolve(energy, flux, parameters, fixed_emis);
 }
 
 fn LinEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
@@ -413,7 +428,7 @@ inline fn kerr_conv_emisN(
     const parameters = LinEmisParameters(f32, Nemis).from_ptr(parameters_ptr);
     const lin_emis = emissivity.LinInterpEmissivity(f32, Nemis).init(parameters.weights, parameters.rmin, parameters.rmax, parameters.alpha);
 
-    kerr_convolve(f64, energy, flux, parameters, lin_emis);
+    kerr_convolve(energy, flux, parameters, lin_emis);
 }
 
 pub export fn kerr_lin_emis5(
