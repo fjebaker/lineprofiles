@@ -3,6 +3,7 @@ const io = @import("io.zig");
 const util = @import("utils.zig");
 const lineprofile = @import("line-profile.zig");
 const emissivity = @import("emissivity.zig");
+const convolution = @import("convolution.zig");
 
 // number of parameters in the table
 const NPARAMS = 2;
@@ -11,6 +12,11 @@ const MODELPATH = "./kerr-transfer-functions.fits";
 // refinement for the energy grid
 const REFINEMENT = 5;
 
+// convolution has a fixed bin width for the model
+// that is to say, the model is evaluated on a grid
+// of g values in [0,2], where the bin width is:
+pub const CONVOLUTION_RESOLUTION = 1e-3;
+
 var allocator = std.heap.c_allocator;
 
 // singleton
@@ -18,6 +24,10 @@ var profile: ?lineprofile.LineProfileTable(NPARAMS, f32) = null;
 var g_grid: []f32 = undefined;
 var r_grid: []f32 = undefined;
 var flux_cache: []f32 = undefined;
+// convolution specifics, need to be double precision to mimic
+// the XSPEC behaviour
+var conv_g_grid: ?[]f64 = null;
+var conv_flux: []f64 = undefined;
 
 fn set_radial_grid(comptime T: type, rmin: T, rmax: T) void {
     util.inverse_grid_inplace(T, r_grid, rmin, rmax);
@@ -112,13 +122,7 @@ fn integrate_lineprofile(
     for (flux) |*f| f.* /= total_flux;
 }
 
-const CONVOLUTION_RESOLUTION = 1e-3;
-fn _kerr_convolve(
-    energy: []const f64,
-    flux: []f64,
-    parameters: anytype,
-    emis: anytype,
-) !void {
+fn convolve_setup() !void {
     // build the convolution energy grid
     var itt = util.RangeIterator(f64).init(
         CONVOLUTION_RESOLUTION,
@@ -126,23 +130,15 @@ fn _kerr_convolve(
         @trunc((2.0 - CONVOLUTION_RESOLUTION) / CONVOLUTION_RESOLUTION),
     );
     var conv_energy = try itt.drain(allocator);
-    defer allocator.free(conv_energy);
+    errdefer allocator.free(conv_energy);
 
     // temporary flux array
     var model_flux = try allocator.alloc(f64, conv_energy.len - 1);
-    defer allocator.free(model_flux);
+    errdefer allocator.free(model_flux);
 
-    // invoke the model
-    integrate_lineprofile(f32, conv_energy, model_flux, parameters, emis);
-
-    // shift energy into g
-    var gs = try allocator.alloc(f64, energy.len);
-    defer allocator.free(gs);
-
-    var flux_copy = try allocator.dupe(f64, flux);
-    defer allocator.free(flux_copy);
-
-    _convolve(f64, flux, conv_energy, model_flux, energy, flux_copy);
+    // assign to singletons
+    conv_g_grid = conv_energy;
+    conv_flux = model_flux;
 }
 
 fn kerr_convolve(
@@ -151,100 +147,29 @@ fn kerr_convolve(
     parameters: anytype,
     emis: anytype,
 ) void {
-    _kerr_convolve(energy, flux, parameters, emis) catch |e| {
-        std.debug.print("kerrlineprofile: ERR: {any}\n", .{e});
-        @panic("kerrlineprofile: fatal error");
+    const conv_energy = conv_g_grid orelse blk: {
+        convolve_setup() catch |e| {
+            std.debug.print("kerrlineprofile: error: {!}\n", .{e});
+            @panic("kerrlineprofile: fatal: COULD NOT ALLOCATE CONVOLUTION MEMORY.");
+        };
+        break :blk conv_g_grid.?;
     };
+
+    // invoke the model
+    integrate_lineprofile(f32, conv_energy, conv_flux, parameters, emis);
+
+    // make a copy of the flux to use in calculating Toeplitz
+    var flux_copy = allocator.dupe(f64, flux) catch |e| {
+        std.debug.print("kerrlineprofile: error: {!}\n", .{e});
+        @panic("kerrlineprofile: fatal: COULD NOT DUPE FLUX ARRAY.");
+    };
+    defer allocator.free(flux_copy);
+
+    // convolve and write result directly into output array
+    convolution.convolve(f64, flux, conv_energy, conv_flux, energy, flux_copy);
 }
 
-/// convolves a and b on domains g and x respectively by rebinning
-/// if necessary, assumes output is on domain x
-pub fn _convolve(
-    comptime T: type,
-    output: []T,
-    g: []const T,
-    a: []const T,
-    x: []const T,
-    b: []const T,
-) void {
-    std.debug.assert(output.len == b.len);
-
-    // find window of non-zero
-    const window_start = blk: {
-        for (0..a.len) |i| if (a[i] > 0)
-            break :blk if (i > 0) i - 1 else i;
-        break :blk 0;
-    };
-    const window_end = blk: {
-        for (0..a.len) |i| {
-            const j = a.len - i - 1;
-            if (a[j] > 0)
-                break :blk if (j < a.len - 1) j + 1 else j;
-        }
-        break :blk 0;
-    };
-
-    const g_min = g[window_start];
-    const g_max = g[window_end];
-
-    for (output) |*o| o.* = 0;
-
-    for (0..output.len) |i| {
-        const avg = 2 / (x[i + 1] + x[i]);
-        for (0..output.len) |j| {
-            // output bin extremes
-            const low = x[j] * avg;
-            const high = x[j + 1] * avg;
-
-            // skip if outside of the window
-            if (high < g_min or low > g_max) continue;
-
-            // integrate the window
-            var weight: T = 0;
-            for (window_start..window_end) |w| {
-                const bin_low = g[w];
-                const bin_high = g[w + 1];
-
-                // check different cases
-                // 1. check if bin is not in output bin
-                //    bin_low |---| bin_high     low |---| high
-                if (bin_high < low) {
-                    continue;
-                } else if (bin_low > high) {
-                    break;
-                }
-                // 2. check if bin is bigger than output bin
-                //    bin_low |...| low |.....| high |...| bin_high
-                else if (bin_low < low and bin_high > high) {
-                    const width = (high - low);
-                    weight += a[w] * width / (bin_high - bin_low) * width;
-                }
-                // 3. check if bin is striding
-                //    bin_low |---| low |.....| bin_high |---| high
-                // or
-                //    low |---| bin_low |.....| high |---| bin_high
-                else if (bin_low < low and bin_high < high) {
-                    // integrate stride
-                    const width = (bin_high - low);
-                    weight += a[w] * width / (bin_high - bin_low) * width;
-                } else if (bin_low > low and bin_high > high) {
-                    // integrate stride
-                    const width = (high - bin_low);
-                    weight += a[w] * width / (bin_high - bin_low) * width;
-                }
-                // 4. bin must be contained
-                //    low |---| bin_low |.....| bin_high |---| high
-                else {
-                    weight += a[w] * CONVOLUTION_RESOLUTION;
-                }
-            }
-            // accumulate the dot product
-            output[j] += weight * b[i];
-        }
-    }
-}
-
-// model definitions
+// model paramter definitions
 
 fn Parameters(comptime T: type) type {
     return struct {
@@ -255,7 +180,7 @@ fn Parameters(comptime T: type) type {
         rmin: T,
         rmax: T,
         pub fn from_ptr(ptr: *const f64) Parameters(T) {
-            const N = @typeInfo(Self).Struct.fields.len;
+            const N = 5;
             var slice = @ptrCast([*]const f64, ptr)[0..N];
             return .{
                 .a = @floatCast(T, slice[0]),
@@ -270,15 +195,151 @@ fn Parameters(comptime T: type) type {
             };
         }
         pub fn from_ptr_conv(ptr: *const f64) Parameters(T) {
-            var self = Parameters(T).from_ptr(ptr);
-            self.eline = 1.0;
-            return self;
+            const N = 4;
+            var slice = @ptrCast([*]const f64, ptr)[0..N];
+            return .{
+                .a = @floatCast(T, slice[0]),
+                // convert to cos(i)
+                .inclination = @cos(std.math.degreesToRadians(
+                    T,
+                    @floatCast(T, slice[1]),
+                )),
+                // fixed for convolution models
+                .eline = 1,
+                .rmin = @floatCast(T, slice[2]),
+                .rmax = @floatCast(T, slice[3]),
+            };
         }
         pub fn table_parameters(self: Self) [NPARAMS]T {
             return [_]T{ self.a, self.inclination };
         }
     };
 }
+
+fn LinEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
+    return struct {
+        const Self = @This();
+        a: T,
+        inclination: T,
+        eline: T,
+        rmin: T,
+        rmax: T,
+        rcutoff: T,
+        alpha: T,
+        weights: [Nbins]T,
+
+        fn read_weights(slice: []const f64, first_index: usize) [Nbins]T {
+            // read in the emissivity weights
+            var weights: [Nbins]T = undefined;
+            for (slice[first_index..], 0..) |w, i| {
+                weights[i] = @floatCast(T, w);
+            }
+            return weights;
+        }
+
+        pub fn from_ptr(ptr: *const f64) Self {
+            const N = 7 + Nbins;
+            var slice = @ptrCast([*]const f64, ptr)[0..N];
+            return .{
+                .a = @floatCast(T, slice[0]),
+                // convert to cos(i)
+                .inclination = @cos(std.math.degreesToRadians(
+                    T,
+                    @floatCast(T, slice[1]),
+                )),
+                .eline = @floatCast(T, slice[2]),
+                .rmin = @floatCast(T, slice[3]),
+                .rmax = @floatCast(T, slice[4]),
+                .rcutoff = @floatCast(T, slice[5]),
+                .alpha = @floatCast(T, slice[6]),
+                .weights = read_weights(slice, 7),
+            };
+        }
+
+        pub fn from_ptr_conv(ptr: *const f64) Self {
+            const N = 6 + Nbins;
+            var slice = @ptrCast([*]const f64, ptr)[0..N];
+            return .{
+                .a = @floatCast(T, slice[0]),
+                // convert to cos(i)
+                .inclination = @cos(std.math.degreesToRadians(
+                    T,
+                    @floatCast(T, slice[1]),
+                )),
+                .eline = 1,
+                .rmin = @floatCast(T, slice[2]),
+                .rmax = @floatCast(T, slice[3]),
+                .rcutoff = @floatCast(T, slice[4]),
+                .alpha = @floatCast(T, slice[5]),
+                .weights = read_weights(slice, 6),
+            };
+        }
+
+        pub fn table_parameters(self: Self) [NPARAMS]T {
+            return [_]T{ self.a, self.inclination };
+        }
+    };
+}
+
+// model dispatchers
+
+inline fn kerr_lin_emisN(
+    comptime Nemis: comptime_int,
+    energy_ptr: *const f64,
+    n_flux: c_int,
+    parameters_ptr: *const f64,
+    spectrum: c_int,
+    flux_ptr: *f64,
+    flux_variance_ptr: *f64,
+    init_ptr: *const u8,
+) void {
+    // unused
+    _ = spectrum;
+    _ = flux_variance_ptr;
+    _ = init_ptr;
+
+    const N = @intCast(usize, n_flux);
+    // convert to slices
+    const energy = @ptrCast([*]const f64, energy_ptr)[0 .. N + 1];
+    var flux = @ptrCast([*]f64, flux_ptr)[0..N];
+
+    const parameters = LinEmisParameters(f32, Nemis).from_ptr(parameters_ptr);
+    const lin_emis = emissivity.LinInterpEmissivity(f32, Nemis).init(
+        parameters.weights,
+        parameters.rmin,
+        parameters.rmax,
+        parameters.alpha,
+    );
+    integrate_lineprofile(f32, energy, flux, parameters, lin_emis);
+}
+
+inline fn kerr_conv_emisN(
+    comptime Nemis: comptime_int,
+    energy_ptr: *const f64,
+    n_flux: c_int,
+    parameters_ptr: *const f64,
+    spectrum: c_int,
+    flux_ptr: *f64,
+    flux_variance_ptr: *f64,
+    init_ptr: *const u8,
+) void {
+    // unused
+    _ = spectrum;
+    _ = flux_variance_ptr;
+    _ = init_ptr;
+
+    const N = @intCast(usize, n_flux);
+    // convert to slices
+    const energy = @ptrCast([*]const f64, energy_ptr)[0 .. N + 1];
+    var flux = @ptrCast([*]f64, flux_ptr)[0..N];
+
+    const parameters = LinEmisParameters(f32, Nemis).from_ptr_conv(parameters_ptr);
+    const lin_emis = emissivity.LinInterpEmissivity(f32, Nemis).init(parameters.weights, parameters.rmin, parameters.rmax, parameters.alpha);
+
+    kerr_convolve(energy, flux, parameters, lin_emis);
+}
+
+// XSPEC API
 
 pub export fn kerr_line_profile(
     // all inputs are double precision
@@ -332,106 +393,7 @@ pub export fn kerr_conv_profile(
     kerr_convolve(energy, flux, parameters, fixed_emis);
 }
 
-fn LinEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
-    return struct {
-        const Self = @This();
-        a: T,
-        inclination: T,
-        eline: T,
-        rmin: T,
-        rmax: T,
-        rcutoff: T,
-        alpha: T,
-        weights: [Nbins]T,
-
-        pub fn from_ptr(ptr: *const f64) Self {
-            const N = 7 + Nbins;
-            var slice = @ptrCast([*]const f64, ptr)[0..N];
-
-            // read in the emissivity weights
-            var weights: [Nbins]T = undefined;
-            for (slice[7..], 0..) |w, i| {
-                weights[i] = @floatCast(T, w);
-            }
-
-            return .{
-                .a = @floatCast(T, slice[0]),
-                // convert to cos(i)
-                .inclination = @cos(std.math.degreesToRadians(
-                    T,
-                    @floatCast(T, slice[1]),
-                )),
-                .eline = @floatCast(T, slice[2]),
-                .rmin = @floatCast(T, slice[3]),
-                .rmax = @floatCast(T, slice[4]),
-                .rcutoff = @floatCast(T, slice[5]),
-                .alpha = @floatCast(T, slice[6]),
-                .weights = weights,
-            };
-        }
-        pub fn table_parameters(self: Self) [NPARAMS]T {
-            return [_]T{ self.a, self.inclination };
-        }
-    };
-}
-
-inline fn kerr_lin_emisN(
-    comptime Nemis: comptime_int,
-    energy_ptr: *const f64,
-    n_flux: c_int,
-    parameters_ptr: *const f64,
-    spectrum: c_int,
-    flux_ptr: *f64,
-    flux_variance_ptr: *f64,
-    init_ptr: *const u8,
-) void {
-    // unused
-    _ = spectrum;
-    _ = flux_variance_ptr;
-    _ = init_ptr;
-
-    const N = @intCast(usize, n_flux);
-    // convert to slices
-    const energy = @ptrCast([*]const f64, energy_ptr)[0 .. N + 1];
-    var flux = @ptrCast([*]f64, flux_ptr)[0..N];
-
-    const parameters = LinEmisParameters(f32, Nemis).from_ptr(parameters_ptr);
-    const lin_emis = emissivity.LinInterpEmissivity(f32, Nemis).init(
-        parameters.weights,
-        parameters.rmin,
-        parameters.rmax,
-        parameters.alpha,
-    );
-    integrate_lineprofile(f32, energy, flux, parameters, lin_emis);
-}
-
-inline fn kerr_conv_emisN(
-    comptime Nemis: comptime_int,
-    energy_ptr: *const f64,
-    n_flux: c_int,
-    parameters_ptr: *const f64,
-    spectrum: c_int,
-    flux_ptr: *f64,
-    flux_variance_ptr: *f64,
-    init_ptr: *const u8,
-) void {
-    // unused
-    _ = spectrum;
-    _ = flux_variance_ptr;
-    _ = init_ptr;
-
-    const N = @intCast(usize, n_flux);
-    // convert to slices
-    const energy = @ptrCast([*]const f64, energy_ptr)[0 .. N + 1];
-    var flux = @ptrCast([*]f64, flux_ptr)[0..N];
-
-    const parameters = LinEmisParameters(f32, Nemis).from_ptr(parameters_ptr);
-    const lin_emis = emissivity.LinInterpEmissivity(f32, Nemis).init(parameters.weights, parameters.rmin, parameters.rmax, parameters.alpha);
-
-    kerr_convolve(energy, flux, parameters, lin_emis);
-}
-
-pub export fn kerr_lin_emis5(
+pub export fn kerr_line_emis5(
     energy_ptr: *const f64,
     n_flux: c_int,
     parameters_ptr: *const f64,

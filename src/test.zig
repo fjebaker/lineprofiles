@@ -130,6 +130,7 @@ pub fn main() !void {
 
         // init delta flux
         setup.flux[150] = 1;
+        setup.flux[200] = 2;
         setup.call(xspec.kerr_conv_profile);
         try plotxy(
             allocator,
