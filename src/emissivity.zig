@@ -41,7 +41,7 @@ pub fn LinInterpEmissivity(comptime T: type, comptime Nbins: comptime_int) type 
             for (&cutoffs) |*c| {
                 c.* = std.math.pow(T, 10, itt.next().?);
             }
-            return .{ .knots = knots, .cutoffs = cutoffs, .alpha = alpha };
+            return .{ .knots = knots, .cutoffs = cutoffs, .alpha = -alpha };
         }
         pub fn emissivity(self: *const Self, r: T) T {
             const i = if (util.find_first_geq(T, &self.cutoffs, r, 0)) |vi| vi.index else {

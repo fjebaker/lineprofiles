@@ -61,7 +61,7 @@ const TestSetup = struct {
         errdefer alloc.free(flux);
         for (flux) |*f| f.* = 0;
 
-        var parameters = try alloc.dupe(f64, &[_]f64{ 0.9, 80, 6.4, 1.0, 50.0 });
+        var parameters = try alloc.dupe(f64, &[_]f64{ 0.9, 80, 6.4, 3.0, 1.0, 50.0 });
         errdefer alloc.free(parameters);
 
         return .{
@@ -111,7 +111,7 @@ pub fn main() !void {
     { // additive model
         var setup = try TestSetup.init(allocator, 0.1, 12.0, 300);
         defer setup.deinit();
-        try setup.setParams(&[_]f64{ 0.9, 80, 6.4, 1.0, 50.0 });
+        try setup.setParams(&[_]f64{ 0.9, 80, 6.4, 3.0, 1.0, 50.0 });
 
         setup.call(xspec.kerr_line_profile);
         try plotxy(
@@ -123,10 +123,10 @@ pub fn main() !void {
         );
     }
 
-    { // additive model
+    { // convolutional model
         var setup = try TestSetup.init(allocator, 0.1, 12.0, 300);
         defer setup.deinit();
-        try setup.setParams(&[_]f64{ 0.9, 80, 6.4, 1.0, 50.0 });
+        try setup.setParams(&[_]f64{ 0.9, 80, 3.0, 1.0, 50.0 });
 
         // init delta flux
         setup.flux[150] = 1;

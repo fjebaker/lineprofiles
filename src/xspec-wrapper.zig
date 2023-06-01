@@ -177,10 +177,11 @@ fn Parameters(comptime T: type) type {
         a: T,
         inclination: T,
         eline: T,
+        alpha: T,
         rmin: T,
         rmax: T,
         pub fn from_ptr(ptr: *const f64) Parameters(T) {
-            const N = 5;
+            const N = 6;
             var slice = @ptrCast([*]const f64, ptr)[0..N];
             return .{
                 .a = @floatCast(T, slice[0]),
@@ -190,12 +191,13 @@ fn Parameters(comptime T: type) type {
                     @floatCast(T, slice[1]),
                 )),
                 .eline = @floatCast(T, slice[2]),
-                .rmin = @floatCast(T, slice[3]),
-                .rmax = @floatCast(T, slice[4]),
+                .alpha = @floatCast(T, slice[3]),
+                .rmin = @floatCast(T, slice[4]),
+                .rmax = @floatCast(T, slice[5]),
             };
         }
         pub fn from_ptr_conv(ptr: *const f64) Parameters(T) {
-            const N = 4;
+            const N = 5;
             var slice = @ptrCast([*]const f64, ptr)[0..N];
             return .{
                 .a = @floatCast(T, slice[0]),
@@ -206,8 +208,9 @@ fn Parameters(comptime T: type) type {
                 )),
                 // fixed for convolution models
                 .eline = 1,
-                .rmin = @floatCast(T, slice[2]),
-                .rmax = @floatCast(T, slice[3]),
+                .alpha = @floatCast(T, slice[2]),
+                .rmin = @floatCast(T, slice[3]),
+                .rmax = @floatCast(T, slice[4]),
             };
         }
         pub fn table_parameters(self: Self) [NPARAMS]T {
@@ -362,7 +365,7 @@ pub export fn kerr_line_profile(
     var flux = @ptrCast([*]f64, flux_ptr)[0..N];
 
     const parameters = Parameters(f32).from_ptr(parameters_ptr);
-    const fixed_emis = emissivity.PowerLawEmissivity(f32).init(-3);
+    const fixed_emis = emissivity.PowerLawEmissivity(f32).init(-parameters.alpha);
 
     integrate_lineprofile(f32, energy, flux, parameters, fixed_emis);
 }
@@ -388,7 +391,7 @@ pub export fn kerr_conv_profile(
     var flux = @ptrCast([*]f64, flux_ptr)[0..N];
 
     const parameters = Parameters(f32).from_ptr_conv(parameters_ptr);
-    const fixed_emis = emissivity.PowerLawEmissivity(f32).init(-3);
+    const fixed_emis = emissivity.PowerLawEmissivity(f32).init(-parameters.alpha);
 
     kerr_convolve(energy, flux, parameters, fixed_emis);
 }
