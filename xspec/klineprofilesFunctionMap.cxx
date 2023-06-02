@@ -16,5 +16,7 @@ createklineprofilesFunctionMap()
 
 	XSModelFunction::addFunctionPointer( "kline",      new XSCall<xsccCall>(kline) );
 	XSModelFunction::addFunctionPointer( "kline5",     new XSCall<xsccCall>(kline5) );
+	XSModelFunction::addFunctionPointer( "kconv",      new XSCall<xsccCall>(kconv) );
+	XSModelFunction::addFunctionPointer( "kconv5",     new XSCall<xsccCall>(kconv5) );
 
 }

@@ -57,6 +57,25 @@ fn setup() !void {
     std.debug.print("kerrlineprofile: Finished one-time setup.\n", .{});
 }
 
+fn convolve_setup() !void {
+    // build the convolution energy grid
+    var itt = util.RangeIterator(f64).init(
+        CONVOLUTION_RESOLUTION,
+        2.0,
+        @trunc((2.0 - CONVOLUTION_RESOLUTION) / CONVOLUTION_RESOLUTION),
+    );
+    var conv_energy = try itt.drain(allocator);
+    errdefer allocator.free(conv_energy);
+
+    // temporary flux array
+    var model_flux = try allocator.alloc(f64, conv_energy.len - 1);
+    errdefer allocator.free(model_flux);
+
+    // assign to singletons
+    conv_g_grid = conv_energy;
+    conv_flux = model_flux;
+}
+
 fn refine_grid(comptime T: type, grid: anytype, norm: T) void {
     const N = (grid.len - 1) * REFINEMENT;
     if (N != g_grid.len) {
@@ -120,25 +139,6 @@ fn integrate_lineprofile(
     }
     // normalize output by area
     for (flux) |*f| f.* /= total_flux;
-}
-
-fn convolve_setup() !void {
-    // build the convolution energy grid
-    var itt = util.RangeIterator(f64).init(
-        CONVOLUTION_RESOLUTION,
-        2.0,
-        @trunc((2.0 - CONVOLUTION_RESOLUTION) / CONVOLUTION_RESOLUTION),
-    );
-    var conv_energy = try itt.drain(allocator);
-    errdefer allocator.free(conv_energy);
-
-    // temporary flux array
-    var model_flux = try allocator.alloc(f64, conv_energy.len - 1);
-    errdefer allocator.free(model_flux);
-
-    // assign to singletons
-    conv_g_grid = conv_energy;
-    conv_flux = model_flux;
 }
 
 fn kerr_convolve(
@@ -337,7 +337,12 @@ inline fn kerr_conv_emisN(
     var flux = @ptrCast([*]f64, flux_ptr)[0..N];
 
     const parameters = LinEmisParameters(f32, Nemis).from_ptr_conv(parameters_ptr);
-    const lin_emis = emissivity.LinInterpEmissivity(f32, Nemis).init(parameters.weights, parameters.rmin, parameters.rmax, parameters.alpha);
+    const lin_emis = emissivity.LinInterpEmissivity(f32, Nemis).init(
+        parameters.weights,
+        parameters.rmin,
+        parameters.rmax,
+        parameters.alpha,
+    );
 
     kerr_convolve(energy, flux, parameters, lin_emis);
 }

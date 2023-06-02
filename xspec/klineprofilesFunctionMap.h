@@ -18,6 +18,8 @@ extern "C"  {
 
 	xsccCall     kline;
 	xsccCall     kline5;
+	xsccCall     kconv;
+	xsccCall     kconv5;
 }
 
 

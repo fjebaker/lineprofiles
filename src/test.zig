@@ -113,7 +113,7 @@ pub fn main() !void {
         defer setup.deinit();
         try setup.setParams(&[_]f64{ 0.9, 80, 6.4, 3.0, 1.0, 50.0 });
 
-        setup.call(xspec.kerr_line_profile);
+        setup.call(xspec.kline);
         try plotxy(
             allocator,
             f64,
@@ -131,7 +131,7 @@ pub fn main() !void {
         // init delta flux
         setup.flux[150] = 1;
         setup.flux[200] = 2;
-        setup.call(xspec.kerr_conv_profile);
+        setup.call(xspec.kconv);
         try plotxy(
             allocator,
             f64,
