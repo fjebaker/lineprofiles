@@ -8,7 +8,7 @@ pub fn build(b: *std.Build) void {
     const zigfitsio = zigFITSTIO.create(b, target);
 
     const xspec = b.addStaticLibrary(.{
-        .name = "xslineprofiles",
+        .name = "xsklineprofiles",
         .root_source_file = .{ .path = "src/xspec-wrapper.zig" },
         .target = target,
         .optimize = optimize,

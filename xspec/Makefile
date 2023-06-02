@@ -4,7 +4,7 @@ HD_COMPONENT_VERS	=
 
 #library definition
 
-HD_LIBRARY_ROOT		= klineprofile
+HD_LIBRARY_ROOT		= klineprofiles
 
 HD_LIB_STYLE		= shared
 
@@ -22,8 +22,8 @@ HD_LIBRARY_SRC_c	=
 
 HD_LIBRARY_SRC_C	= 
 
-HD_LIBRARY_SRC_cxx	= klineprofileFunctionMap.cxx \
-			  lpack_klineprofile.cxx
+HD_LIBRARY_SRC_cxx	= klineprofilesFunctionMap.cxx \
+			  lpack_klineprofiles.cxx
 
 HD_LIBRARY_SRC_cpp	= 
 
@@ -55,8 +55,8 @@ HD_CLEAN		= lpack_${HD_LIBRARY_ROOT}.cxx \
 			  ${HD_LIBRARY_ROOT}FunctionMap.h \
 			  ${PACKAGE} Makefile pkgIndex.tcl *.bck
 
-HD_SHLIB_LIBS           = ${HD_LFLAGS} -l${CCFITS} -l${CFITSIO} -lXS \
-                          -lXSUtil -lXSFunctions -lXSModel -l${TCL} -lxslineprofiles \
+HD_SHLIB_LIBS           = ${HD_LFLAGS} -l${CCFITS} -l${CFITSIO} -lXS -lxsklineprofiles \
+                          -lXSUtil -lXSFunctions -lXSModel -l${TCL} \
                           -l${HEAUTILS} ${HD_STD_LIBS} ${SYSLIBS} ${F77LIBS4C} \
 
 include ${HD_STD_MAKEFILE}

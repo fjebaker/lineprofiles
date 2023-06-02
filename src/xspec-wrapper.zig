@@ -344,7 +344,7 @@ inline fn kerr_conv_emisN(
 
 // XSPEC API
 
-pub export fn kerr_line_profile(
+pub export fn kline(
     // all inputs are double precision
     energy_ptr: *const f64,
     n_flux: c_int,
@@ -370,7 +370,7 @@ pub export fn kerr_line_profile(
     integrate_lineprofile(f32, energy, flux, parameters, fixed_emis);
 }
 
-pub export fn kerr_conv_profile(
+pub export fn kconv(
     // all inputs are double precision
     energy_ptr: *const f64,
     n_flux: c_int,
@@ -396,7 +396,7 @@ pub export fn kerr_conv_profile(
     kerr_convolve(energy, flux, parameters, fixed_emis);
 }
 
-pub export fn kerr_line_emis5(
+pub export fn kline5(
     energy_ptr: *const f64,
     n_flux: c_int,
     parameters_ptr: *const f64,
@@ -408,7 +408,7 @@ pub export fn kerr_line_emis5(
     return kerr_lin_emisN(5, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
 }
 
-pub export fn kerr_conv_emis5(
+pub export fn kconv5(
     energy_ptr: *const f64,
     n_flux: c_int,
     parameters_ptr: *const f64,
