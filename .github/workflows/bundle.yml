@@ -23,7 +23,7 @@ jobs:
       - name: Build and cache
         run: zig build xspec -Doptimize=ReleaseFast -Dtarget=${{matrix.target}}
       - name: Move artifact
-        run: mv zig-out/lib/libxslineprofiles.* ./xspec
+        run: mv zig-out/lib/libxsklineprofiles.* ./xspec
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
