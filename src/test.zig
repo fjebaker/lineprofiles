@@ -18,7 +18,16 @@ fn plotxy(
     }
 
     var cmd = std.ChildProcess.init(
-        &[_][]const u8{ "graph", "-T", "png" },
+        &[_][]const u8{
+            "graph",
+            "-T",
+            "svg",
+            "-X",
+            "Energy (kev)",
+            "-Y",
+            "Flux (arb.)",
+            "-C",
+        },
         alloc,
     );
     cmd.stdin_behavior = .Pipe;
@@ -111,9 +120,10 @@ pub fn main() !void {
     { // additive model
         var setup = try TestSetup.init(allocator, 0.1, 12.0, 300);
         defer setup.deinit();
-        try setup.setParams(&[_]f64{ 0.9, 80, 6.4, 3.0, 1.0, 50.0 });
+        try setup.setParams(&[_]f64{ 0.998, 40, 6.4, 3.0, 1.0, 50.0 });
 
         setup.call(xspec.kline);
+
         try plotxy(
             allocator,
             f64,
@@ -126,12 +136,14 @@ pub fn main() !void {
     { // convolutional model
         var setup = try TestSetup.init(allocator, 0.1, 12.0, 300);
         defer setup.deinit();
-        try setup.setParams(&[_]f64{ 0.9, 80, 3.0, 1.0, 50.0 });
+        try setup.setParams(&[_]f64{ 0.998, 40, 3.0, 1.0, 50.0 });
 
         // init delta flux
         setup.flux[150] = 1;
-        setup.flux[200] = 2;
+        setup.flux[200] = 1;
         setup.call(xspec.kconv);
+        utils.normalize(f64, setup.flux);
+
         try plotxy(
             allocator,
             f64,
