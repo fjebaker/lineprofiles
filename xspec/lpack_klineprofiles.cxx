@@ -10,6 +10,22 @@
 #include  <XSFunctions/Utilities/XSCall.h>
 #include  <XSFunctions/Utilities/XSModelFunction.h>
 
+#include <string>
+
+extern "C" {
+#include <unistd.h>
+}
+
+std::string cwd()
+{
+        char buf[2048];
+        if (getcwd(buf, sizeof(buf))) {
+            return std::string(buf);
+        } else {
+            return std::string("");
+        }
+}
+
 extern "C" int Klineprofiles_Init(Tcl_Interp* tclInterp);
 extern "C" int Klineprofiles_SafeInit(Tcl_Interp* tclInterp);
 
@@ -25,7 +41,7 @@ int Klineprofiles_SafeInit(Tcl_Interp* tclInterp)
         char VERSION[] = "1.0";
         Tcl_PkgProvide(tclInterp, PACKAGE, VERSION);
         XSModelFunction::updateComponentList
-              ("/home/heasoft/datasets/lineprofiles-model/lmodel.dat");
+              (cwd() + "/lmodel.dat");
         createklineprofilesFunctionMap();
         return TCL_OK;
 
