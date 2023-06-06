@@ -37,7 +37,7 @@ pub fn LinInterpEmissivity(comptime T: type, comptime Nbins: comptime_int) type 
         /// a standard power law with fixed emissivity alpha, renormalized to intersect with the knot at kn.
         pub fn init(knots: [Nbins]T, rmin: T, rmax: T, alpha: T) Self {
             var cutoffs: [Nbins]T = undefined;
-            var itt = util.RangeIterator(T).init(std.math.log10(rmin), std.math.log10(rmax), Nbins);
+            var itt = util.RangeIterator(T).init(std.math.log10(rmin), std.math.log10(rmax) / 2.5, Nbins);
             for (&cutoffs) |*c| {
                 c.* = std.math.pow(T, 10, itt.next().?);
             }
