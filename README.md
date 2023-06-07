@@ -73,19 +73,19 @@ See the [releases](https://github.com/fjebaker/lineprofiles/releases) and guidan
 
 ## Emissivity interpolation
 
-The emissivity function in `klineN` and `kconvN` is calculated with a linear interpolation in $\log \varepsilon$, $\log r$ space; that is to say, the power law index is piecewise constant between $N$ knots $\vec{k} = (\alpha_1, \alpha_2, \ldots, \alpha_N)$:
+The emissivity function in `klineN` and `kconvN` is calculated with a linear interpolation in $\log \varepsilon$, $\log r$ space; that is to say, the power law index is piecewise constant between $N$ knots $\vec{k} = (r_1, r_2, \ldots, r_N)$:
 
 $$
 \varepsilon(r, \vec{k}) = \left\{ \begin{matrix}
-    e^\alpha_1, & r \leq r_1 \\
-    e^\alpha_2, & r_1 < r \leq r_2 \\
+    e^{\alpha_1}, & r \leq r_1 \\
+    e^{\alpha_2}, & r_1 < r \leq r_2 \\
     \vdots & \\
-    e^\alpha_N, & r_N < r \leq r_\text{cut} \\
+    e^{\alpha_N}, & r_N < r \leq r_\text{cut} \\
     e^\alpha & \text{otherwise}
 \end{matrix}\right. ,
 $$
 
-The cutoff radius $r_\text{cut}$ is just under half of the outer radius of the disc in log space.
+The cutoff radius $r_\text{cut}$ is just under half of the outer radius of the disc in log space. The power-law indices $\alpha_i$ are determined by linearly interpolating the emissivities given by the model, $\varepsilon_i$, over $\vec{k}$.
 
 where the different $r_i$ are calculated as $N$ log linear intervals between the inner and outer radius of the disc.
 
