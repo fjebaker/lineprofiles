@@ -1,0 +1,11 @@
+.{
+    .paths = .{""},
+    .name = "lineprofiles",
+    .version = "0.1.1",
+    .dependencies = .{
+        .zfitsio = .{
+            .url = "https://github.com/fjebaker/zigFITSIO/archive/main.tar.gz",
+            .hash = "12204f142209a587f18272ee1653d0ab54f9c907a669826689d092d79b27531cc580",
+        },
+    }
+}

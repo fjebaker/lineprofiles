@@ -21,7 +21,7 @@ fn plotxy(
         &[_][]const u8{
             "graph",
             "-T",
-            "svg",
+            "png",
             "-X",
             "Energy (kev)",
             "-Y",
