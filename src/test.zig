@@ -76,7 +76,7 @@ const TestSetup = struct {
         return .{
             .allocator = alloc,
             .energy = energy,
-            .n_flux = @intCast(i64, N - 1),
+            .n_flux = @as(i64, @intCast(N - 1)),
             .parameters = parameters,
             .flux = flux,
         };
@@ -95,11 +95,11 @@ const TestSetup = struct {
 
     pub fn call(self: *@This(), comptime f: anytype) void {
         f(
-            @ptrCast(*const f64, self.energy.ptr),
-            @intCast(c_int, self.n_flux),
-            @ptrCast(*const f64, self.parameters.ptr),
+            @as(*const f64, @ptrCast(self.energy.ptr)),
+            @as(c_int, @intCast(self.n_flux)),
+            @as(*const f64, @ptrCast(self.parameters.ptr)),
             @as(c_int, 0),
-            @ptrCast(*f64, self.flux.ptr),
+            @as(*f64, @ptrCast(self.flux.ptr)),
             undefined,
             undefined,
         );

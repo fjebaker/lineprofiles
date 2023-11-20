@@ -19,7 +19,7 @@ pub fn convert(
 ) ![]T {
     var out = try allocator.alloc(T, source.len);
     for (0..source.len) |i| {
-        out[i] = @floatCast(T, source[i]);
+        out[i] = @as(T, @floatCast(source[i]));
     }
     return out;
 }
@@ -135,7 +135,7 @@ pub fn RangeIterator(comptime T: type) type {
         }
 
         pub fn init(min: T, max: T, N: usize) Self {
-            const delta = (max - min) / @intToFloat(T, N - 1);
+            const delta = (max - min) / @as(T, @floatFromInt(N - 1));
             return .{
                 .delta = delta,
                 .remaining = N,
@@ -207,12 +207,12 @@ pub fn refine_grid(comptime T: type, grid: anytype, fine_grid: []T, N: usize, no
 
     var j: usize = 0;
     for (1..grid.len) |i| {
-        const v0 = @floatCast(T, grid[i - 1]);
-        const v1 = @floatCast(T, grid[i]);
+        const v0 = @as(T, @floatCast(grid[i - 1]));
+        const v1 = @as(T, @floatCast(grid[i]));
 
         // interpolate the grid
         for (0..N) |k| {
-            const factor = @intToFloat(T, k) / @intToFloat(T, N);
+            const factor = @as(T, @floatFromInt(k)) / @as(T, @floatFromInt(N));
             const v = factor * v1 + (1 - factor) * v0;
             fine_grid[j] = v * inorm;
             j += 1;

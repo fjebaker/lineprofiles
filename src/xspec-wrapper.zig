@@ -126,7 +126,7 @@ fn integrate_lineprofile(
         flux[i] = 0;
         // sum up the grid values
         for (0..REFINEMENT) |_| {
-            flux[i] += @floatCast(f64, flux_cache[j]);
+            flux[i] += @as(f64, @floatCast(flux_cache[j]));
             j += 1;
             if (j == flux_cache.len) {
                 break;
@@ -182,35 +182,35 @@ fn Parameters(comptime T: type) type {
         rmax: T,
         pub fn from_ptr(ptr: *const f64) Parameters(T) {
             const N = 6;
-            var slice = @ptrCast([*]const f64, ptr)[0..N];
+            var slice = @as([*]const f64, @ptrCast(ptr))[0..N];
             return .{
-                .a = @floatCast(T, slice[0]),
+                .a = @as(T, @floatCast(slice[0])),
                 // convert to cos(i)
                 .inclination = @cos(std.math.degreesToRadians(
                     T,
-                    @floatCast(T, slice[1]),
+                    @as(T, @floatCast(slice[1])),
                 )),
-                .eline = @floatCast(T, slice[2]),
-                .alpha = @floatCast(T, slice[3]),
-                .rmin = @floatCast(T, slice[4]),
-                .rmax = @floatCast(T, slice[5]),
+                .eline = @as(T, @floatCast(slice[2])),
+                .alpha = @as(T, @floatCast(slice[3])),
+                .rmin = @as(T, @floatCast(slice[4])),
+                .rmax = @as(T, @floatCast(slice[5])),
             };
         }
         pub fn from_ptr_conv(ptr: *const f64) Parameters(T) {
             const N = 5;
-            var slice = @ptrCast([*]const f64, ptr)[0..N];
+            var slice = @as([*]const f64, @ptrCast(ptr))[0..N];
             return .{
-                .a = @floatCast(T, slice[0]),
+                .a = @as(T, @floatCast(slice[0])),
                 // convert to cos(i)
                 .inclination = @cos(std.math.degreesToRadians(
                     T,
-                    @floatCast(T, slice[1]),
+                    @as(T, @floatCast(slice[1])),
                 )),
                 // fixed for convolution models
                 .eline = 1,
-                .alpha = @floatCast(T, slice[2]),
-                .rmin = @floatCast(T, slice[3]),
-                .rmax = @floatCast(T, slice[4]),
+                .alpha = @as(T, @floatCast(slice[2])),
+                .rmin = @as(T, @floatCast(slice[3])),
+                .rmax = @as(T, @floatCast(slice[4])),
             };
         }
         pub fn table_parameters(self: Self) [NPARAMS]T {
@@ -235,45 +235,45 @@ fn LinEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
             // read in the emissivity weights
             var weights: [Nbins]T = undefined;
             for (slice[first_index..], 0..) |w, i| {
-                weights[i] = @floatCast(T, w);
+                weights[i] = @as(T, @floatCast(w));
             }
             return weights;
         }
 
         pub fn from_ptr(ptr: *const f64) Self {
             const N = 7 + Nbins;
-            var slice = @ptrCast([*]const f64, ptr)[0..N];
+            var slice = @as([*]const f64, @ptrCast(ptr))[0..N];
             return .{
-                .a = @floatCast(T, slice[0]),
+                .a = @as(T, @floatCast(slice[0])),
                 // convert to cos(i)
                 .inclination = @cos(std.math.degreesToRadians(
                     T,
-                    @floatCast(T, slice[1]),
+                    @as(T, @floatCast(slice[1])),
                 )),
-                .eline = @floatCast(T, slice[2]),
-                .rmin = @floatCast(T, slice[3]),
-                .rmax = @floatCast(T, slice[4]),
-                .rcutoff = @floatCast(T, slice[5]),
-                .alpha = @floatCast(T, slice[6]),
+                .eline = @as(T, @floatCast(slice[2])),
+                .rmin = @as(T, @floatCast(slice[3])),
+                .rmax = @as(T, @floatCast(slice[4])),
+                .rcutoff = @as(T, @floatCast(slice[5])),
+                .alpha = @as(T, @floatCast(slice[6])),
                 .weights = read_weights(slice, 7),
             };
         }
 
         pub fn from_ptr_conv(ptr: *const f64) Self {
             const N = 6 + Nbins;
-            var slice = @ptrCast([*]const f64, ptr)[0..N];
+            var slice = @as([*]const f64, @ptrCast(ptr))[0..N];
             return .{
-                .a = @floatCast(T, slice[0]),
+                .a = @as(T, @floatCast(slice[0])),
                 // convert to cos(i)
                 .inclination = @cos(std.math.degreesToRadians(
                     T,
-                    @floatCast(T, slice[1]),
+                    @as(T, @floatCast(slice[1])),
                 )),
                 .eline = 1,
-                .rmin = @floatCast(T, slice[2]),
-                .rmax = @floatCast(T, slice[3]),
-                .rcutoff = @floatCast(T, slice[4]),
-                .alpha = @floatCast(T, slice[5]),
+                .rmin = @as(T, @floatCast(slice[2])),
+                .rmax = @as(T, @floatCast(slice[3])),
+                .rcutoff = @as(T, @floatCast(slice[4])),
+                .alpha = @as(T, @floatCast(slice[5])),
                 .weights = read_weights(slice, 6),
             };
         }
@@ -301,10 +301,10 @@ inline fn kerr_lin_emisN(
     _ = flux_variance_ptr;
     _ = init_ptr;
 
-    const N = @intCast(usize, n_flux);
+    const N = @as(usize, @intCast(n_flux));
     // convert to slices
-    const energy = @ptrCast([*]const f64, energy_ptr)[0 .. N + 1];
-    var flux = @ptrCast([*]f64, flux_ptr)[0..N];
+    const energy = @as([*]const f64, @ptrCast(energy_ptr))[0 .. N + 1];
+    var flux = @as([*]f64, @ptrCast(flux_ptr))[0..N];
 
     const parameters = LinEmisParameters(f32, Nemis).from_ptr(parameters_ptr);
     const lin_emis = emissivity.LinInterpEmissivity(f32, Nemis).init(
@@ -331,10 +331,10 @@ inline fn kerr_conv_emisN(
     _ = flux_variance_ptr;
     _ = init_ptr;
 
-    const N = @intCast(usize, n_flux);
+    const N = @as(usize, @intCast(n_flux));
     // convert to slices
-    const energy = @ptrCast([*]const f64, energy_ptr)[0 .. N + 1];
-    var flux = @ptrCast([*]f64, flux_ptr)[0..N];
+    const energy = @as([*]const f64, @ptrCast(energy_ptr))[0 .. N + 1];
+    var flux = @as([*]f64, @ptrCast(flux_ptr))[0..N];
 
     const parameters = LinEmisParameters(f32, Nemis).from_ptr_conv(parameters_ptr);
     const lin_emis = emissivity.LinInterpEmissivity(f32, Nemis).init(
@@ -364,10 +364,10 @@ pub export fn kline(
     _ = flux_variance_ptr;
     _ = init_ptr;
 
-    const N = @intCast(usize, n_flux);
+    const N = @as(usize, @intCast(n_flux));
     // convert to slices
-    const energy = @ptrCast([*]const f64, energy_ptr)[0 .. N + 1];
-    var flux = @ptrCast([*]f64, flux_ptr)[0..N];
+    const energy = @as([*]const f64, @ptrCast(energy_ptr))[0 .. N + 1];
+    var flux = @as([*]f64, @ptrCast(flux_ptr))[0..N];
 
     const parameters = Parameters(f32).from_ptr(parameters_ptr);
     const fixed_emis = emissivity.PowerLawEmissivity(f32).init(-parameters.alpha);
@@ -390,10 +390,10 @@ pub export fn kconv(
     _ = flux_variance_ptr;
     _ = init_ptr;
 
-    const N = @intCast(usize, n_flux);
+    const N = @as(usize, @intCast(n_flux));
     // convert to slices
-    const energy = @ptrCast([*]const f64, energy_ptr)[0 .. N + 1];
-    var flux = @ptrCast([*]f64, flux_ptr)[0..N];
+    const energy = @as([*]const f64, @ptrCast(energy_ptr))[0 .. N + 1];
+    var flux = @as([*]f64, @ptrCast(flux_ptr))[0..N];
 
     const parameters = Parameters(f32).from_ptr_conv(parameters_ptr);
     const fixed_emis = emissivity.PowerLawEmissivity(f32).init(-parameters.alpha);
