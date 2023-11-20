@@ -336,7 +336,7 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             lim_star: T,
         ) T {
             const k = util.gstar_to_g(lim_star, self.cache_gmin, self.cache_gmax);
-            const w = @fabs(std.math.sqrt(k) - std.math.sqrt(lim));
+            const w = @abs(std.math.sqrt(k) - std.math.sqrt(lim));
             return 2 * w * self.integrand(k) * std.math.sqrt(H) * (self.cache_gmax - self.cache_gmin);
         }
 

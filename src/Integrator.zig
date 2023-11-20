@@ -111,4 +111,3 @@ pub fn integrate_simpsons(comptime T: type, x: []const T, y: []const T) T {
     _ = y;
 }
 // todo: romberg
-
