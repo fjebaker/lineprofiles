@@ -1,5 +1,5 @@
 const std = @import("std");
-const zigfitsio = @import("zigfitsio");
+const zigfitsio = @import("zfitsio");
 
 const lineprof = @import("line-profile.zig");
 const xfunc = @import("transfer-functions.zig");

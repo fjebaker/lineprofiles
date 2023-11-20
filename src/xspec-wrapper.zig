@@ -9,6 +9,10 @@ const convolution = @import("convolution.zig");
 const NPARAMS = 2;
 const MODELPATH = "./kerr-transfer-functions.fits";
 
+pub fn getModelPath() ![]const u8 {
+    return MODELPATH;
+}
+
 // refinement for the energy grid
 const REFINEMENT = 5;
 
@@ -34,7 +38,7 @@ fn set_radial_grid(comptime T: type, rmin: T, rmax: T) void {
 }
 
 fn setup() !void {
-    profile = try io.readFitsFile(NPARAMS, f32, 30, MODELPATH, allocator);
+    profile = try io.readFitsFile(NPARAMS, f32, 30, try getModelPath(), allocator);
     errdefer profile.?.deinit();
 
     std.debug.print(
