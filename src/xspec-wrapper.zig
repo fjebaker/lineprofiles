@@ -15,7 +15,7 @@ pub fn getModelPath() ![]const u8 {
         defer allocator.free(root);
         data_file = try std.fs.path.join(allocator, &.{ root, MODELPATH });
 
-        try std.debug.print("kerrlineprofile: reading data from '{s}'\n", .{data_file.?});
+        std.debug.print("kerrlineprofile: reading data from '{s}'\n", .{data_file.?});
 
         return data_file.?;
     };
