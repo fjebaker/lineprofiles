@@ -10,7 +10,12 @@ const NPARAMS = 2;
 const MODELPATH = "./kerr-transfer-functions.fits";
 
 pub fn getModelPath() ![]const u8 {
-    return MODELPATH;
+    return data_file orelse {
+        const root = try std.process.getEnvVarOwned(allocator, "KLINE_PROF_DATA_DIR");
+        defer allocator.free(root);
+        data_file = try std.fs.path.join(allocator, &.{ root, MODELPATH });
+        return data_file.?;
+    };
 }
 
 // refinement for the energy grid
@@ -21,6 +26,7 @@ const REFINEMENT = 5;
 // of g values in [0,2], where the bin width is:
 pub const CONVOLUTION_RESOLUTION = 1e-3;
 
+var data_file: ?[]const u8 = null;
 var allocator = std.heap.c_allocator;
 
 // singleton
