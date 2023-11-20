@@ -7,13 +7,16 @@ const convolution = @import("convolution.zig");
 
 // number of parameters in the table
 const NPARAMS = 2;
-const MODELPATH = "./kerr-transfer-functions.fits";
+const MODELPATH = "kerr-transfer-functions.fits";
 
 pub fn getModelPath() ![]const u8 {
     return data_file orelse {
         const root = try std.process.getEnvVarOwned(allocator, "KLINE_PROF_DATA_DIR");
         defer allocator.free(root);
         data_file = try std.fs.path.join(allocator, &.{ root, MODELPATH });
+
+        try std.debug.print("kerrlineprofile: reading data from '{s}'\n", .{data_file.?});
+
         return data_file.?;
     };
 }
