@@ -8,18 +8,39 @@ const convolution = @import("convolution.zig");
 // number of parameters in the table
 const NPARAMS = 2;
 const MODELPATH = "kerr-transfer-functions.fits";
+const MSG_PREFIX = "kerrlineprofile: ";
+
+fn debugPrint(comptime fmt: []const u8, args: anytype) void {
+    if (!verbose) return;
+
+    var out = std.io.getStdOut();
+    out.writer().print(fmt, args) catch |err| {
+        // try to debug log, else no worries
+        std.debug.print(MSG_PREFIX ++ "Error in debug printing: {!}\n", .{err});
+    };
+}
 
 pub fn getModelPath() ![]const u8 {
     return data_file orelse {
-        const root = try std.process.getEnvVarOwned(allocator, "KLINE_PROF_DATA_DIR");
+        const root = std.process.getEnvVarOwned(
+            allocator,
+            "KLINE_PROF_DATA_DIR",
+        ) catch |err|
+            if (err == error.EnvironmentVariableNotFound)
+            try allocator.dupe(u8, ".")
+        else
+            return err;
+
         defer allocator.free(root);
         data_file = try std.fs.path.join(allocator, &.{ root, MODELPATH });
 
-        std.debug.print("kerrlineprofile: reading data from '{s}'\n", .{data_file.?});
+        debugPrint("reading data from '{s}'\n", .{data_file.?});
 
         return data_file.?;
     };
 }
+
+var verbose = true;
 
 // refinement for the energy grid
 const REFINEMENT = 5;
@@ -50,8 +71,8 @@ fn setup() !void {
     profile = try io.readFitsFile(NPARAMS, f32, 30, try getModelPath(), allocator);
     errdefer profile.?.deinit();
 
-    std.debug.print(
-        "kerrlineprofile: Read in {d} transfer function tables.\n",
+    debugPrint(
+        "Read in {d} transfer function tables.\n",
         .{profile.?.transfer_functions.len},
     );
 
@@ -67,7 +88,7 @@ fn setup() !void {
     // allocate output
     flux_cache = try allocator.alloc(f32, g_grid.len - 1);
 
-    std.debug.print("kerrlineprofile: Finished one-time setup.\n", .{});
+    debugPrint("Finished one-time setup.\n", .{});
 }
 
 fn convolve_setup() !void {
@@ -114,7 +135,7 @@ fn integrate_lineprofile(
     // do we need to do first time setup?
     var lp = profile orelse blk: {
         setup() catch |e| {
-            std.debug.print("kerrlineprofile: error: {!}\n", .{e});
+            debugPrint("error: {!}\n", .{e});
             @panic("kerrlineprofile: fatal: COULD NOT INITIALIZE MODEL.");
         };
         break :blk profile.?;
@@ -162,7 +183,7 @@ fn kerr_convolve(
 ) void {
     const conv_energy = conv_g_grid orelse blk: {
         convolve_setup() catch |e| {
-            std.debug.print("kerrlineprofile: error: {!}\n", .{e});
+            debugPrint("error: {!}\n", .{e});
             @panic("kerrlineprofile: fatal: COULD NOT ALLOCATE CONVOLUTION MEMORY.");
         };
         break :blk conv_g_grid.?;
@@ -173,7 +194,7 @@ fn kerr_convolve(
 
     // make a copy of the flux to use in calculating Toeplitz
     var flux_copy = allocator.dupe(f64, flux) catch |e| {
-        std.debug.print("kerrlineprofile: error: {!}\n", .{e});
+        debugPrint("error: {!}\n", .{e});
         @panic("kerrlineprofile: fatal: COULD NOT DUPE FLUX ARRAY.");
     };
     defer allocator.free(flux_copy);
@@ -436,4 +457,38 @@ pub export fn kconv5(
     init_ptr: *const u8,
 ) callconv(.C) void {
     return kerr_conv_emisN(5, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
+}
+
+fn smokeTestModel(domain: []const f64, comptime f: anytype, params: []const f64) !void {
+    var output = try std.testing.allocator.alloc(f64, domain.len - 1);
+    defer std.testing.allocator.free(output);
+    var f_var: f64 = 0;
+    var init_ptr = "";
+
+    f(
+        @ptrCast(domain.ptr),
+        @intCast(output.len),
+        @ptrCast(params.ptr),
+        0,
+        @ptrCast(output.ptr),
+        &f_var,
+        @ptrCast(init_ptr),
+    );
+}
+
+fn exampleDomain(alloc: std.mem.Allocator, size: usize) ![]f64 {
+    var itt = util.RangeIterator(f64).init(0.1, 10, size);
+    return try itt.drain(alloc);
+}
+
+test "smoke test all" {
+    verbose = false;
+    var domain = try exampleDomain(std.testing.allocator, 100);
+    defer std.testing.allocator.free(domain);
+
+    try smokeTestModel(domain, kline, &[_]f64{ 0.998, 60, 6.4, 3.0, 1.0, 400.0 });
+    try smokeTestModel(domain, kline, &[_]f64{ 0.998, 0.1, 6.4, 3.0, 1.0, 400.0 });
+    try smokeTestModel(domain, kline, &[_]f64{ 0.998, 89.0, 6.4, 3.0, 1.0, 400.0 });
+    try smokeTestModel(domain, kline, &[_]f64{ 0.998, 60.0, 6.4, 0.0, 1.0, 400.0 });
+    try smokeTestModel(domain, kline, &[_]f64{ 0.998, 60.0, 6.4, 0.0, 0.0, 400.0 });
 }
