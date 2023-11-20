@@ -22,7 +22,7 @@ pub fn build(b: *std.Build) void {
 
     var plots = b.addExecutable(.{
         .name = "plots",
-        .root_source_file = .{ .path = "src/test.zig" },
+        .root_source_file = .{ .path = "src/plots.zig" },
         .target = target,
         .optimize = optimize,
     });
