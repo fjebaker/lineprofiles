@@ -1,20 +1,25 @@
 name: Bundle
 
 on:
-  push:
+  workflow_run:
+    workflows:
+      - Test
+    types:
+      - completed
     branches:
       - main
 
 jobs:
   build:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     strategy:
       matrix:
-        target: [x86_64-linux-gnu, aarch64-linux-gnu, x86_64-macos-none, aarch64-macos-none] 
+        target: [x86_64-linux-gnu, aarch64-linux-gnu, x86_64-macos-none, aarch64-macos-none]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-        with: 
+        with:
           submodules: recursive
       - name: Setup zig
         uses: goto-bus-stop/setup-zig@v2

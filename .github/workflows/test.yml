@@ -1,0 +1,28 @@
+name: Test
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - name: Setup zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.12.0-dev.1647+325e0f5f0
+      - name: Fetch the tablemodel
+        run: |
+          wget 'https://github.com/fjebaker/lineprofiles/releases/download/v0.1.0/kerr-transfer-functions-v0.1.0.zip'
+          unzip kerr-transfer-functions-v0.1.0.zip
+      - name: Build and test
+        run: zig build -Doptimize=ReleaseFast test
