@@ -261,7 +261,6 @@ fn LinEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
         eline: T,
         rmin: T,
         rmax: T,
-        rcutoff: T,
         alpha: T,
         weights: [Nbins]T,
 
@@ -275,7 +274,7 @@ fn LinEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
         }
 
         pub fn from_ptr(ptr: *const f64) Self {
-            const N = 7 + Nbins;
+            const N = 6 + Nbins;
             var slice = @as([*]const f64, @ptrCast(ptr))[0..N];
             return .{
                 .a = @as(T, @floatCast(slice[0])),
@@ -287,14 +286,13 @@ fn LinEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
                 .eline = @as(T, @floatCast(slice[2])),
                 .rmin = @as(T, @floatCast(slice[3])),
                 .rmax = @as(T, @floatCast(slice[4])),
-                .rcutoff = @as(T, @floatCast(slice[5])),
-                .alpha = @as(T, @floatCast(slice[6])),
-                .weights = read_weights(slice, 7),
+                .alpha = @as(T, @floatCast(slice[5])),
+                .weights = read_weights(slice, 6),
             };
         }
 
         pub fn from_ptr_conv(ptr: *const f64) Self {
-            const N = 6 + Nbins;
+            const N = 5 + Nbins;
             var slice = @as([*]const f64, @ptrCast(ptr))[0..N];
             return .{
                 .a = @as(T, @floatCast(slice[0])),
@@ -306,9 +304,8 @@ fn LinEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
                 .eline = 1,
                 .rmin = @as(T, @floatCast(slice[2])),
                 .rmax = @as(T, @floatCast(slice[3])),
-                .rcutoff = @as(T, @floatCast(slice[4])),
-                .alpha = @as(T, @floatCast(slice[5])),
-                .weights = read_weights(slice, 6),
+                .alpha = @as(T, @floatCast(slice[4])),
+                .weights = read_weights(slice, 5),
             };
         }
 
@@ -464,7 +461,6 @@ fn smokeTestModel(domain: []const f64, comptime f: anytype, params: []const f64)
     defer std.testing.allocator.free(output);
     var f_var: f64 = 0;
     var init_ptr = "";
-
     f(
         @ptrCast(domain.ptr),
         @intCast(output.len),
@@ -491,4 +487,6 @@ test "smoke test all" {
     try smokeTestModel(domain, kline, &[_]f64{ 0.998, 89.0, 6.4, 3.0, 1.0, 400.0 });
     try smokeTestModel(domain, kline, &[_]f64{ 0.998, 60.0, 6.4, 0.0, 1.0, 400.0 });
     try smokeTestModel(domain, kline, &[_]f64{ 0.998, 60.0, 6.4, 0.0, 0.0, 400.0 });
+
+    try smokeTestModel(domain, kconv5, &[_]f64{ 0.998, 60.0, 1.0, 400.0, 3.0, 1e6, 1e5, 1e4, 1e3, 1e2 });
 }
