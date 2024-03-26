@@ -98,11 +98,11 @@ fn convolve_setup() !void {
         2.0,
         @trunc((2.0 - CONVOLUTION_RESOLUTION) / CONVOLUTION_RESOLUTION),
     );
-    var conv_energy = try itt.drain(allocator);
+    const conv_energy = try itt.drain(allocator);
     errdefer allocator.free(conv_energy);
 
     // temporary flux array
-    var model_flux = try allocator.alloc(f64, conv_energy.len - 1);
+    const model_flux = try allocator.alloc(f64, conv_energy.len - 1);
     errdefer allocator.free(model_flux);
 
     // assign to singletons
@@ -193,7 +193,7 @@ fn kerr_convolve(
     integrate_lineprofile(f32, conv_energy, conv_flux, parameters, emis);
 
     // make a copy of the flux to use in calculating Toeplitz
-    var flux_copy = allocator.dupe(f64, flux) catch |e| {
+    const flux_copy = allocator.dupe(f64, flux) catch |e| {
         debugPrint("error: {!}\n", .{e});
         @panic("kerrlineprofile: fatal: COULD NOT DUPE FLUX ARRAY.");
     };
@@ -216,12 +216,11 @@ fn Parameters(comptime T: type) type {
         rmax: T,
         pub fn from_ptr(ptr: *const f64) Parameters(T) {
             const N = 6;
-            var slice = @as([*]const f64, @ptrCast(ptr))[0..N];
+            const slice = @as([*]const f64, @ptrCast(ptr))[0..N];
             return .{
                 .a = @as(T, @floatCast(slice[0])),
                 // convert to cos(i)
                 .inclination = @cos(std.math.degreesToRadians(
-                    T,
                     @as(T, @floatCast(slice[1])),
                 )),
                 .eline = @as(T, @floatCast(slice[2])),
@@ -232,12 +231,11 @@ fn Parameters(comptime T: type) type {
         }
         pub fn from_ptr_conv(ptr: *const f64) Parameters(T) {
             const N = 5;
-            var slice = @as([*]const f64, @ptrCast(ptr))[0..N];
+            const slice = @as([*]const f64, @ptrCast(ptr))[0..N];
             return .{
                 .a = @as(T, @floatCast(slice[0])),
                 // convert to cos(i)
                 .inclination = @cos(std.math.degreesToRadians(
-                    T,
                     @as(T, @floatCast(slice[1])),
                 )),
                 // fixed for convolution models
@@ -275,12 +273,11 @@ fn LinEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
 
         pub fn from_ptr(ptr: *const f64) Self {
             const N = 6 + Nbins;
-            var slice = @as([*]const f64, @ptrCast(ptr))[0..N];
+            const slice = @as([*]const f64, @ptrCast(ptr))[0..N];
             return .{
                 .a = @as(T, @floatCast(slice[0])),
                 // convert to cos(i)
                 .inclination = @cos(std.math.degreesToRadians(
-                    T,
                     @as(T, @floatCast(slice[1])),
                 )),
                 .eline = @as(T, @floatCast(slice[2])),
@@ -293,12 +290,11 @@ fn LinEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
 
         pub fn from_ptr_conv(ptr: *const f64) Self {
             const N = 5 + Nbins;
-            var slice = @as([*]const f64, @ptrCast(ptr))[0..N];
+            const slice = @as([*]const f64, @ptrCast(ptr))[0..N];
             return .{
                 .a = @as(T, @floatCast(slice[0])),
                 // convert to cos(i)
                 .inclination = @cos(std.math.degreesToRadians(
-                    T,
                     @as(T, @floatCast(slice[1])),
                 )),
                 .eline = 1,
@@ -335,7 +331,7 @@ inline fn kerr_lin_emisN(
     const N = @as(usize, @intCast(n_flux));
     // convert to slices
     const energy = @as([*]const f64, @ptrCast(energy_ptr))[0 .. N + 1];
-    var flux = @as([*]f64, @ptrCast(flux_ptr))[0..N];
+    const flux = @as([*]f64, @ptrCast(flux_ptr))[0..N];
 
     const parameters = LinEmisParameters(f32, Nemis).from_ptr(parameters_ptr);
     const lin_emis = emissivity.LinInterpEmissivity(f32, Nemis).init(
@@ -365,7 +361,7 @@ inline fn kerr_conv_emisN(
     const N = @as(usize, @intCast(n_flux));
     // convert to slices
     const energy = @as([*]const f64, @ptrCast(energy_ptr))[0 .. N + 1];
-    var flux = @as([*]f64, @ptrCast(flux_ptr))[0..N];
+    const flux = @as([*]f64, @ptrCast(flux_ptr))[0..N];
 
     const parameters = LinEmisParameters(f32, Nemis).from_ptr_conv(parameters_ptr);
     const lin_emis = emissivity.LinInterpEmissivity(f32, Nemis).init(
@@ -398,7 +394,7 @@ pub export fn kline(
     const N = @as(usize, @intCast(n_flux));
     // convert to slices
     const energy = @as([*]const f64, @ptrCast(energy_ptr))[0 .. N + 1];
-    var flux = @as([*]f64, @ptrCast(flux_ptr))[0..N];
+    const flux = @as([*]f64, @ptrCast(flux_ptr))[0..N];
 
     const parameters = Parameters(f32).from_ptr(parameters_ptr);
     const fixed_emis = emissivity.PowerLawEmissivity(f32).init(-parameters.alpha);
@@ -424,7 +420,7 @@ pub export fn kconv(
     const N = @as(usize, @intCast(n_flux));
     // convert to slices
     const energy = @as([*]const f64, @ptrCast(energy_ptr))[0 .. N + 1];
-    var flux = @as([*]f64, @ptrCast(flux_ptr))[0..N];
+    const flux = @as([*]f64, @ptrCast(flux_ptr))[0..N];
 
     const parameters = Parameters(f32).from_ptr_conv(parameters_ptr);
     const fixed_emis = emissivity.PowerLawEmissivity(f32).init(-parameters.alpha);
@@ -457,10 +453,10 @@ pub export fn kconv5(
 }
 
 fn smokeTestModel(domain: []const f64, comptime f: anytype, params: []const f64) !void {
-    var output = try std.testing.allocator.alloc(f64, domain.len - 1);
+    const output = try std.testing.allocator.alloc(f64, domain.len - 1);
     defer std.testing.allocator.free(output);
     var f_var: f64 = 0;
-    var init_ptr = "";
+    const init_ptr = "";
     f(
         @ptrCast(domain.ptr),
         @intCast(output.len),
@@ -479,7 +475,7 @@ fn exampleDomain(alloc: std.mem.Allocator, size: usize) ![]f64 {
 
 test "smoke test all" {
     verbose = false;
-    var domain = try exampleDomain(std.testing.allocator, 100);
+    const domain = try exampleDomain(std.testing.allocator, 100);
     defer std.testing.allocator.free(domain);
 
     try smokeTestModel(domain, kline, &[_]f64{ 0.998, 60, 6.4, 3.0, 1.0, 400.0 });
@@ -489,4 +485,6 @@ test "smoke test all" {
     try smokeTestModel(domain, kline, &[_]f64{ 0.998, 60.0, 6.4, 0.0, 0.0, 400.0 });
 
     try smokeTestModel(domain, kconv5, &[_]f64{ 0.998, 60.0, 1.0, 400.0, 3.0, 1e6, 1e5, 1e4, 1e3, 1e2 });
+    // with zero emissivities
+    try smokeTestModel(domain, kconv5, &[_]f64{ 0.998, 60.0, 1.0, 400.0, 3.0, 1e6, 1e5, 1e4, 0, 1e2 });
 }

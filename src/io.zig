@@ -22,21 +22,21 @@ pub fn readTransferFunctions(
     for (offset..f.num_hdus + 1) |i| {
         const table = (try f.getHDU(i)).BinaryTable;
 
-        var upper_f = try table.getColumnVectorTyped(DataType, 4, allocator);
+        const upper_f = try table.getColumnVectorTyped(DataType, 4, allocator);
         errdefer allocator.free(upper_f);
         errdefer for (upper_f) |line| allocator.free(line);
 
-        var lower_f = try table.getColumnVectorTyped(DataType, 5, allocator);
+        const lower_f = try table.getColumnVectorTyped(DataType, 5, allocator);
         errdefer allocator.free(lower_f);
         errdefer for (lower_f) |line| allocator.free(line);
 
-        var radii = try table.getColumnTyped(DataType, 1, allocator, .{});
+        const radii = try table.getColumnTyped(DataType, 1, allocator, .{});
         errdefer allocator.free(radii);
 
-        var gmins = try table.getColumnTyped(DataType, 2, allocator, .{});
+        const gmins = try table.getColumnTyped(DataType, 2, allocator, .{});
         errdefer allocator.free(gmins);
 
-        var gmaxs = try table.getColumnTyped(DataType, 3, allocator, .{});
+        const gmaxs = try table.getColumnTyped(DataType, 3, allocator, .{});
         errdefer allocator.free(gmaxs);
 
         list.appendAssumeCapacity(.{
@@ -57,23 +57,24 @@ pub fn readFitsFile(
     path: []const u8,
     allocator: std.mem.Allocator,
 ) !lineprof.LineProfileTable(NParams, T) {
+    try std.fs.cwd().access(path, .{});
     var f = try zigfitsio.FITS.initFromFile(path);
     errdefer f.deinit();
 
     // todo: n generic parameters
     const alpha_hdu = try f.getHDU(2);
-    var alphas = try alpha_hdu.BinaryTable.getColumnTyped(T, 1, allocator, .{});
+    const alphas = try alpha_hdu.BinaryTable.getColumnTyped(T, 1, allocator, .{});
     errdefer allocator.free(alphas);
 
     const incl = try f.getHDU(3);
-    var angle = try incl.BinaryTable.getColumnTyped(T, 1, allocator, .{});
+    const angle = try incl.BinaryTable.getColumnTyped(T, 1, allocator, .{});
     errdefer allocator.free(angle);
 
-    var gstars = try allocator.dupe(T, &util.gstar_grid(T, Ngstar));
+    const gstars = try allocator.dupe(T, &util.gstar_grid(T, Ngstar));
     errdefer allocator.free(gstars);
 
     // unpack the list
-    var tf = try readTransferFunctions(T, f32, allocator, &f, 4);
+    const tf = try readTransferFunctions(T, f32, allocator, &f, 4);
     errdefer allocator.free(tf);
     errdefer for (tf) |*t| t.free(allocator);
 

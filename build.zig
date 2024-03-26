@@ -14,7 +14,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    xspec.addModule("zfitsio", zfitsio);
+    xspec.root_module.addImport("zfitsio", zfitsio);
     xspec.linkLibrary(cfitsio);
 
     const xspec_step = b.step("xspec", "Build the XSPEC static library");
@@ -27,7 +27,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    plots.addModule("zfitsio", zfitsio);
+    plots.root_module.addImport("zfitsio", zfitsio);
     plots.linkLibrary(zfits.artifact("cfitsio"));
 
     const plots_step = b.step("plots", "Create debugging plots");
@@ -41,7 +41,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    unit_tests.addModule("zfitsio", zfitsio);
+    unit_tests.root_module.addImport("zfitsio", zfitsio);
     unit_tests.linkLibrary(cfitsio);
 
     const run_unit_tests = b.addRunArtifact(unit_tests);

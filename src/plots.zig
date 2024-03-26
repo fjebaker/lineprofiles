@@ -63,14 +63,14 @@ const TestSetup = struct {
 
     pub fn init(alloc: std.mem.Allocator, emin: f64, emax: f64, N: usize) !TestSetup {
         var erange = utils.RangeIterator(f64).init(emin, emax, N);
-        var energy = try erange.drain(alloc);
+        const energy = try erange.drain(alloc);
         errdefer alloc.free(energy);
 
-        var flux = try alloc.alloc(f64, energy.len - 1);
+        const flux = try alloc.alloc(f64, energy.len - 1);
         errdefer alloc.free(flux);
         for (flux) |*f| f.* = 0;
 
-        var parameters = try alloc.dupe(f64, &[_]f64{ 0.9, 80, 6.4, 3.0, 1.0, 50.0 });
+        const parameters = try alloc.dupe(f64, &[_]f64{ 0.9, 80, 6.4, 3.0, 1.0, 50.0 });
         errdefer alloc.free(parameters);
 
         return .{
@@ -107,7 +107,7 @@ const TestSetup = struct {
 };
 
 pub fn main() !void {
-    var allocator = std.heap.c_allocator;
+    const allocator = std.heap.c_allocator;
 
     try plotxy(
         allocator,

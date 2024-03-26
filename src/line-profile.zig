@@ -212,7 +212,7 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
         ) [NParams * 2]usize {
             // mutable copy of the parameter_indices
             var pindices: [NParams]usize = undefined;
-            std.mem.copy(usize, &pindices, &parameter_indices);
+            std.mem.copyForwards(usize, &pindices, &parameter_indices);
 
             // store the table striding the chosen parameter interpolation
             var table_indices: [NParams * 2]usize = undefined;
@@ -248,7 +248,7 @@ pub fn LineProfileTable(comptime NParams: comptime_int, comptime T: type) type {
             }
             // make a single interpolated transfer function regardless of
             // NParams
-            var itf = try InterpolatingTransferFunction(T).init(
+            const itf = try InterpolatingTransferFunction(T).init(
                 gstars,
                 alloc,
                 // point to the cached function

@@ -16,19 +16,19 @@ pub fn TransferFunction(comptime T: type) type {
         radii: []T,
 
         pub fn copy(self: *const Self, allocator: std.mem.Allocator) !Self {
-            var ub = try util.dupe2d(T, allocator, self.upper_branch);
+            const ub = try util.dupe2d(T, allocator, self.upper_branch);
             errdefer util.free2d(T, allocator, ub);
 
-            var lb = try util.dupe2d(T, allocator, self.lower_branch);
+            const lb = try util.dupe2d(T, allocator, self.lower_branch);
             errdefer util.free2d(T, allocator, lb);
 
-            var gmin = try allocator.dupe(T, self.gmin);
+            const gmin = try allocator.dupe(T, self.gmin);
             errdefer allocator.free(gmin);
 
-            var gmax = try allocator.dupe(T, self.gmax);
+            const gmax = try allocator.dupe(T, self.gmax);
             errdefer allocator.free(gmax);
 
-            var radii = try allocator.dupe(T, self.radii);
+            const radii = try allocator.dupe(T, self.radii);
             errdefer allocator.free(radii);
 
             return .{
@@ -50,14 +50,14 @@ pub fn TransferFunction(comptime T: type) type {
 
         pub fn assignFrom(self: *Self, other: *const Self) void {
             for (self.upper_branch, 0..) |ub, j| {
-                std.mem.copy(T, ub, other.upper_branch[j]);
+                std.mem.copyForwards(T, ub, other.upper_branch[j]);
             }
             for (self.lower_branch, 0..) |lb, j| {
-                std.mem.copy(T, lb, other.lower_branch[j]);
+                std.mem.copyForwards(T, lb, other.lower_branch[j]);
             }
-            std.mem.copy(T, self.gmin, other.gmin);
-            std.mem.copy(T, self.gmax, other.gmax);
-            std.mem.copy(T, self.radii, other.radii);
+            std.mem.copyForwards(T, self.gmin, other.gmin);
+            std.mem.copyForwards(T, self.gmax, other.gmax);
+            std.mem.copyForwards(T, self.radii, other.radii);
         }
 
         pub fn interpolateBetween(
@@ -157,7 +157,7 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             };
 
             // clamp to avoid extrapolation
-            var r_clamped = std.math.clamp(
+            const r_clamped = std.math.clamp(
                 r,
                 self.tf.radii[self.tf.radii.len - 1],
                 self.tf.radii[0],
@@ -237,9 +237,9 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             tf: *TransferFunction(T),
         ) !Self {
             const n = tf.lower_branch[0].len;
-            var cache_upper = try allocator.alloc(T, n);
+            const cache_upper = try allocator.alloc(T, n);
             errdefer allocator.free(cache_upper);
-            var cache_lower = try allocator.alloc(T, n);
+            const cache_lower = try allocator.alloc(T, n);
             return .{
                 .tf = tf,
                 .cache_upper = cache_upper,

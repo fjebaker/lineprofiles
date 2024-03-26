@@ -190,7 +190,7 @@ pub fn inverse_grid(
     max: T,
     N: usize,
 ) ![]T {
-    var grid = try alloc.alloc(T, N);
+    const grid = try alloc.alloc(T, N);
     inverse_grid_inplace(T, grid, min, max);
     return grid;
 }
