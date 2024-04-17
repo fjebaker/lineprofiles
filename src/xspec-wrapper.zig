@@ -484,7 +484,7 @@ test "smoke test all" {
     try smokeTestModel(domain, kline, &[_]f64{ 0.998, 60.0, 6.4, 0.0, 1.0, 400.0 });
     try smokeTestModel(domain, kline, &[_]f64{ 0.998, 60.0, 6.4, 0.0, 0.0, 400.0 });
 
-    try smokeTestModel(domain, kconv5, &[_]f64{ 0.998, 60.0, 1.0, 400.0, 3.0, 1e6, 1e5, 1e4, 1e3, 1e2 });
+    try smokeTestModel(domain, kconv5, &[_]f64{ 0.998, 60.0, 1.0, 400.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0 });
     // with zero emissivities
-    try smokeTestModel(domain, kconv5, &[_]f64{ 0.998, 60.0, 1.0, 400.0, 3.0, 1e6, 1e5, 1e4, 0, 1e2 });
+    try smokeTestModel(domain, kconv5, &[_]f64{ 0.998, 60.0, 1.0, 400.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0 });
 }

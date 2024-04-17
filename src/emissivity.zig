@@ -14,51 +14,74 @@ pub fn PowerLawEmissivity(comptime T: type) type {
     };
 }
 
-pub fn LinInterpEmissivity(comptime T: type, comptime Nbins: comptime_int) type {
+pub fn LinInterpEmissivity(comptime T: type, comptime N: comptime_int) type {
     return struct {
         const Self = @This();
-        knots: [Nbins]T,
-        cutoffs: [Nbins]T,
+
+        powers: [N]T,
+        radii: [N]T,
+        coeffs: [N]T,
         alpha: T,
 
-        /// Knots are defines as the edges between which linear interpolations are reconstructed in log space.
-        ///
-        ///   k1   k2   k3   kn
-        ///   |    |    |    |
-        ///   |    x -- x    |
-        ///   |  / |   linear interpolation between knots
-        ///   | /  |    |  \ |
-        ///   x    |    |   \
-        ///   |    |    |    \   regular power law
-        ///
-        ///  log r
-        ///
-        /// This function will not extrapolate beyond rmin and rmax. Beyond kn, the emissivity model assumes
-        /// a standard power law with fixed emissivity alpha, renormalized to intersect with the knot at kn.
-        pub fn init(knots: [Nbins]T, rmin: T, rmax: T, alpha: T) Self {
-            var cutoffs: [Nbins]T = undefined;
-            var itt = util.RangeIterator(T).init(std.math.log10(rmin), std.math.log10(rmax) / 2.5, Nbins);
-            for (&cutoffs) |*c| {
-                c.* = std.math.pow(T, 10, itt.next().?);
+        fn calculateLogCoefficients(coeffs: []T, radii: []const T, powers: []const T, alpha: T) void {
+            // do the edge case
+            coeffs[coeffs.len - 1] = radii[radii.len - 1] * (powers[powers.len - 1] - alpha);
+
+            for (0..radii.len - 2) |j| {
+                // run in reverse, i goes form radii.len - 1 to 1
+                const i = radii.len - j - 2;
+                const delta_p = powers[i] - powers[i + 1];
+                coeffs[i] = coeffs[i + 1] + (radii[i] * delta_p);
             }
-            return .{ .knots = knots, .cutoffs = cutoffs, .alpha = -alpha };
         }
+
+        /// Given some power indices, an inner and outer radius, and the
+        /// regular behaviour, returns a `LinInterpEmissivity` that
+        /// interpolates the emissivity function appropriately.
+        pub fn init(powers: [N]T, rmin: T, rmax: T, alpha: T) Self {
+            var radii: [N]T = undefined;
+            var coeffs: [N]T = undefined;
+            var itt = util.RangeIterator(T).init(std.math.log10(rmin), std.math.log10(rmax) / 2.5, N + 1);
+            _ = itt.next();
+
+            for (&radii) |*r| r.* = itt.next().?;
+            calculateLogCoefficients(&coeffs, &radii, &powers, alpha);
+
+            // exponentiate everything back to regular values
+            for (&radii) |*r| r.* = std.math.pow(T, 10, r.*);
+            for (&coeffs) |*c| c.* = std.math.pow(T, 10, c.*);
+
+            const em: Self = .{
+                .powers = powers,
+                .radii = radii,
+                .alpha = alpha,
+                .coeffs = coeffs,
+            };
+            return em;
+        }
+
         pub fn emissivity(self: *const Self, r: T) T {
-            const i = if (util.find_first_geq(T, &self.cutoffs, r, 0)) |vi| vi.index else {
+            const i = if (util.find_first_geq(T, &self.radii, r, 0)) |vi| vi.index else {
                 // constant power law
-                return self.knots[Nbins - 1] * std.math.pow(T, r, self.alpha) / std.math.pow(T, self.cutoffs[Nbins - 1], self.alpha);
+                return std.math.pow(T, r, -self.alpha);
             };
             if (i == 0) {
-                return self.knots[0];
+                return std.math.pow(T, r, -self.powers[0]);
             }
 
-            const r1 = std.math.log10(self.cutoffs[i]);
-            const r0 = std.math.log10(self.cutoffs[i - 1]);
-            const y1 = std.math.log10(self.knots[i]);
-            const y0 = std.math.log10(self.knots[i - 1]);
-            const weight = (std.math.log10(r) - r0) / (r1 - r0);
-
-            return std.math.pow(T, 10, (y1 - y0) * weight + y0);
+            const pow = self.powers[i];
+            const coeff = self.coeffs[i];
+            return coeff * std.math.pow(T, r, -pow);
         }
     };
+}
+
+test "emissivity interpolations" {
+    const em = LinInterpEmissivity(f32, 4).init(
+        [_]f32{ 5, 1, 3, 2 },
+        1.0,
+        50.0,
+        3,
+    );
+    _ = em;
 }
