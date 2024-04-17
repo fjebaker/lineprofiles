@@ -27,7 +27,7 @@ pub fn LinInterpEmissivity(comptime T: type, comptime N: comptime_int) type {
             // do the edge case
             coeffs[coeffs.len - 1] = radii[radii.len - 1] * (powers[powers.len - 1] - alpha);
 
-            for (0..radii.len - 2) |j| {
+            for (0..radii.len - 1) |j| {
                 // run in reverse, i goes form radii.len - 1 to 1
                 const i = radii.len - j - 2;
                 const delta_p = powers[i] - powers[i + 1];
@@ -66,7 +66,7 @@ pub fn LinInterpEmissivity(comptime T: type, comptime N: comptime_int) type {
                 return std.math.pow(T, r, -self.alpha);
             };
             if (i == 0) {
-                return std.math.pow(T, r, -self.powers[0]);
+                return self.coeffs[0] * std.math.pow(T, r, -self.powers[0]);
             }
 
             const pow = self.powers[i];
