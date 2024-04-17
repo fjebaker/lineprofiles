@@ -48,7 +48,7 @@ jobs:
       - name: Move artifact
         run: mv zig-out/lib/libxsklineprofiles.* ./xspec
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: ${{matrix.target}}-lineprofiles.tar.gz
           path: ./xspec
@@ -59,17 +59,15 @@ jobs:
     container: fjebaker/heasoft:ci-6.33.1-amd64
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4-node16
+        uses: actions/download-artifact@v3
         with:
           name: x86_64-linux-gnu-lineprofiles.tar.gz
       - name: Unpack and locate
         run: |
           ls -la
-          mv x86_64-linux-gnu-lineprofiles/* ./
-          ls -la
       - name: Fetch the tablemodel
         run: |
-          wget --no-check-certificate 'https://github.com/fjebaker/lineprofiles/releases/download/v0.1.0/kerr-transfer-functions-v0.1.0.zip'
+          wget 'https://github.com/fjebaker/lineprofiles/releases/download/v0.1.0/kerr-transfer-functions-v0.1.0.zip'
       - uses: montudor/action-zip@v1
         with:
           args: unzip kerr-transfer-functions-v0.1.0.zip
