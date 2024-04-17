@@ -5,7 +5,7 @@
     .dependencies = .{
         .zfitsio = .{
             .url = "https://github.com/fjebaker/zigFITSIO/archive/main.tar.gz",
-            .hash = "12204247441017c82cc3debb05e13283ffe898a65dfec89b37d94c65cdb07a1b33a4",
+            .hash = "1220e53d273297678cad2e476ff13084ced4c2320aa65264248274890f08d42c27e2",
         },
     },
 }

@@ -1,0 +1,69 @@
+name: XSPEC Integration
+
+on:
+  workflow_run:
+    workflows:
+      - Bundle
+    types:
+      - completed
+    branches:
+      - main
+      - ci
+
+
+jobs:
+  main:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    container: fjebaker/heasoft:ci-6.33.1-amd64
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: x86_64-linux-gnu
+        run-id: ${{ github.event.workflow_run.id }}
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Unpack and locate
+      run: |
+        ls -la
+        mv x86_64-linux-gnu/* ./
+        ls -la
+    - name: Fetch the tablemodel
+      run: |
+        wget --no-check-certificate 'https://github.com/fjebaker/lineprofiles/releases/download/v0.1.0/kerr-transfer-functions-v0.1.0.zip'
+    - uses: montudor/action-zip@v1
+      with:
+        args: unzip kerr-transfer-functions-v0.1.0.zip
+    - name: Build XSPEC script
+      run: |
+        cat <<EOF > smoke_test.xcm
+        statistic chi
+        method leven 10 0.01
+        abund angr
+        xsect vern
+        cosmo 70 0 0.73
+        xset delta 0.01
+        systematic 0
+        hmake
+        lmod klineprofiles .
+        model  kconv5*gaussian
+                  0.998      0.001     -0.998     -0.998      0.998      0.998
+                     60          1          0          0         90         90
+                      1        0.1          1          1        100        100
+                    400        0.1          1          1        400       1000
+                      3          1          0          0         10         10
+                      3          1          0          0      1e+10      1e+10
+                      3          1          0          0      1e+10      1e+10
+                      3          1          0          0      1e+10      1e+10
+                      3          1          0          0      1e+10      1e+10
+                      3          1          0          0      1e+10      1e+10
+                    6.5       0.05          0          0      1e+06      1e+06
+                    0.1       0.05          0          0         10         20
+                      1       0.01          0          0      1e+20      1e+24
+        bayes off
+        exit
+        EOF
+    - name: Run smoke test
+      run: xspec - smoke_test.xcm
+
+

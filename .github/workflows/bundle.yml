@@ -8,6 +8,7 @@ on:
       - completed
     branches:
       - main
+      - ci
 
 jobs:
   build:
@@ -18,13 +19,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
       - name: Setup zig
         uses: goto-bus-stop/setup-zig@v2
         with:
-          version: 0.12.0-dev.1647+325e0f5f0
+          version: 0.12.0-dev.3667+77abd3a96
       - name: Build and cache
         run: zig build xspec -Doptimize=ReleaseFast -Dtarget=${{matrix.target}}
       - name: Move artifact
