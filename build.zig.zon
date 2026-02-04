@@ -1,11 +1,12 @@
 .{
     .paths = .{""},
-    .name = "lineprofiles",
+    .name = .lineprofiles,
+    .fingerprint = 0x4adce52acc19cd64,
     .version = "0.1.1",
     .dependencies = .{
-        .zfitsio = .{
-            .url = "https://github.com/fjebaker/zigFITSIO/archive/main.tar.gz",
-            .hash = "1220e53d273297678cad2e476ff13084ced4c2320aa65264248274890f08d42c27e2",
+        .zfits = .{
+            .url = "git+https://codeberg.org/fjebaker/zigfitsio#7f14da18e4097379fe1e1fa64032c47bcf388729",
+            .hash = "zfits-0.0.1-NiJIwzxkXwCecrHeha7vNYaOcQLHq6x5lhT4c9FPTEgE",
         },
     },
 }

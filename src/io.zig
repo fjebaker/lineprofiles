@@ -15,7 +15,7 @@ pub fn readTransferFunctions(
     if (T != DataType) @compileError("Type mistmatch.");
 
     var list = try std.ArrayList(xfunc.TransferFunction(T)).initCapacity(allocator, f.num_hdus - offset + 1);
-    errdefer list.deinit();
+    errdefer list.deinit(allocator);
     errdefer for (list.items) |*tf| tf.free(allocator);
 
     // read in all of the transfer function data
@@ -47,7 +47,7 @@ pub fn readTransferFunctions(
             .radii = radii,
         });
     }
-    return list.toOwnedSlice();
+    return list.toOwnedSlice(allocator);
 }
 
 pub fn readFitsFile(

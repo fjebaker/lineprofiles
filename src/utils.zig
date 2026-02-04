@@ -70,12 +70,12 @@ pub fn dupe2d(
     source: []const []T,
 ) ![][]T {
     var list = try std.ArrayList([]T).initCapacity(allocator, source.len);
-    errdefer list.deinit();
+    errdefer list.deinit(allocator);
     errdefer for (list.items) |item| allocator.free(item);
     for (source) |item| {
         list.appendAssumeCapacity(try allocator.dupe(T, item));
     }
-    return list.toOwnedSlice();
+    return list.toOwnedSlice(allocator);
 }
 
 pub fn free2d(comptime T: type, allocator: std.mem.Allocator, arr: [][]T) void {

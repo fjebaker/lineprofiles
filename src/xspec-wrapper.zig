@@ -13,10 +13,12 @@ const MSG_PREFIX = "kerrlineprofile: ";
 fn debugPrint(comptime fmt: []const u8, args: anytype) void {
     if (!verbose) return;
 
-    var out = std.io.getStdOut();
-    out.writer().print(fmt, args) catch |err| {
+    var out_writer = std.fs.File.stdout().writer(&.{});
+    const out = &out_writer.interface;
+
+    out.print(fmt, args) catch |err| {
         // try to debug log, else no worries
-        std.debug.print(MSG_PREFIX ++ "Error in debug printing: {!}\n", .{err});
+        std.debug.print(MSG_PREFIX ++ "Error in debug printing: {any}\n", .{err});
     };
 }
 
@@ -27,9 +29,9 @@ pub fn getModelPath() ![]const u8 {
             "KLINE_PROF_DATA_DIR",
         ) catch |err|
             if (err == error.EnvironmentVariableNotFound)
-            try allocator.dupe(u8, ".")
-        else
-            return err;
+                try allocator.dupe(u8, ".")
+            else
+                return err;
 
         defer allocator.free(root);
         data_file = try std.fs.path.join(allocator, &.{ root, MODELPATH });
@@ -135,7 +137,7 @@ fn integrate_lineprofile(
     // do we need to do first time setup?
     var lp = profile orelse blk: {
         setup() catch |e| {
-            debugPrint("error: {!}\n", .{e});
+            debugPrint("error: {any}\n", .{e});
             @panic("kerrlineprofile: fatal: COULD NOT INITIALIZE MODEL.");
         };
         break :blk profile.?;
@@ -183,7 +185,7 @@ fn kerr_convolve(
 ) void {
     const conv_energy = conv_g_grid orelse blk: {
         convolve_setup() catch |e| {
-            debugPrint("error: {!}\n", .{e});
+            debugPrint("error: {any}\n", .{e});
             @panic("kerrlineprofile: fatal: COULD NOT ALLOCATE CONVOLUTION MEMORY.");
         };
         break :blk conv_g_grid.?;
@@ -194,7 +196,7 @@ fn kerr_convolve(
 
     // make a copy of the flux to use in calculating Toeplitz
     const flux_copy = allocator.dupe(f64, flux) catch |e| {
-        debugPrint("error: {!}\n", .{e});
+        debugPrint("error: {any}\n", .{e});
         @panic("kerrlineprofile: fatal: COULD NOT DUPE FLUX ARRAY.");
     };
     defer allocator.free(flux_copy);
@@ -385,7 +387,7 @@ pub export fn kline(
     flux_ptr: *f64,
     flux_variance_ptr: *f64,
     init_ptr: *const u8,
-) callconv(.C) void {
+) callconv(.c) void {
     // unused
     _ = spectrum;
     _ = flux_variance_ptr;
@@ -411,7 +413,7 @@ pub export fn kconv(
     flux_ptr: *f64,
     flux_variance_ptr: *f64,
     init_ptr: *const u8,
-) callconv(.C) void {
+) callconv(.c) void {
     // unused
     _ = spectrum;
     _ = flux_variance_ptr;
@@ -436,7 +438,7 @@ pub export fn kline5(
     flux_ptr: *f64,
     flux_variance_ptr: *f64,
     init_ptr: *const u8,
-) callconv(.C) void {
+) callconv(.c) void {
     return kerr_lin_emisN(5, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
 }
 
@@ -448,7 +450,7 @@ pub export fn kconv5(
     flux_ptr: *f64,
     flux_variance_ptr: *f64,
     init_ptr: *const u8,
-) callconv(.C) void {
+) callconv(.c) void {
     return kerr_conv_emisN(5, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
 }
 
