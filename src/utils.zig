@@ -195,31 +195,25 @@ pub fn inverse_grid(
     return grid;
 }
 
+pub fn log_grid(
+    comptime T: type,
+    alloc: std.mem.Allocator,
+    min: T,
+    max: T,
+    N: usize,
+) ![]T {
+    const grid = try alloc.alloc(T, N);
+    var itt = RangeIterator(T).init(std.math.log10(min), std.math.log10(max), grid.len);
+    for (grid) |*g| {
+        g.* = std.math.pow(10, itt.next().?);
+    }
+    return grid;
+}
+
 pub fn normalize(comptime T: type, arr: []T) void {
     var sum: T = 0;
     for (arr) |v| sum += v;
     for (arr) |*v| v.* = v.* / sum;
-}
-
-pub fn refine_grid(comptime T: type, grid: anytype, fine_grid: []T, N: usize, norm: T) void {
-    std.debug.assert((grid.len - 1) * N == fine_grid.len);
-    const inorm = 1 / norm;
-
-    var j: usize = 0;
-    for (1..grid.len) |i| {
-        const v0 = @as(T, @floatCast(grid[i - 1]));
-        const v1 = @as(T, @floatCast(grid[i]));
-
-        // interpolate the grid
-        for (0..N) |k| {
-            const factor = @as(T, @floatFromInt(k)) / @as(T, @floatFromInt(N));
-            const v = factor * v1 + (1 - factor) * v0;
-            fine_grid[j] = v * inorm;
-            j += 1;
-        }
-    }
-    // TODO: note that this is technically missing the very last
-    // edge in grid
 }
 
 pub const H = 5e-4;
