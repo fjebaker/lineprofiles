@@ -37,11 +37,12 @@ pub fn LinInterpEmissivity(comptime T: type, comptime N: comptime_int) type {
 
         /// Given some power indices, an inner and outer radius, and the
         /// regular behaviour, returns a `LinInterpEmissivity` that
-        /// interpolates the emissivity function appropriately.
+        /// interpolates the emissivity function appropriately between rmin and
+        /// rmax. Outside of rmax, applied alpha.
         pub fn init(powers: [N]T, rmin: T, rmax: T, alpha: T) Self {
             var radii: [N]T = undefined;
             var coeffs: [N]T = undefined;
-            var itt = util.RangeIterator(T).init(std.math.log10(rmin), std.math.log10(rmax) / 2.5, N + 1);
+            var itt = util.RangeIterator(T).init(std.math.log10(rmin), rmax, N + 1);
             _ = itt.next();
 
             for (&radii) |*r| r.* = itt.next().?;

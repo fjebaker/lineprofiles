@@ -225,9 +225,9 @@ fn Parameters(comptime T: type) type {
                     @as(T, @floatCast(slice[1])),
                 )),
                 .eline = @as(T, @floatCast(slice[2])),
-                .alpha = @as(T, @floatCast(slice[3])),
-                .rmin = @as(T, @floatCast(slice[4])),
-                .rmax = @as(T, @floatCast(slice[5])),
+                .rmin = @as(T, @floatCast(slice[3])),
+                .rmax = @as(T, @floatCast(slice[4])),
+                .alpha = @as(T, @floatCast(slice[5])),
             };
         }
         pub fn from_ptr_conv(ptr: *const f64) Parameters(T) {
@@ -241,9 +241,9 @@ fn Parameters(comptime T: type) type {
                 )),
                 // fixed for convolution models
                 .eline = 1,
-                .alpha = @as(T, @floatCast(slice[2])),
-                .rmin = @as(T, @floatCast(slice[3])),
-                .rmax = @as(T, @floatCast(slice[4])),
+                .rmin = @as(T, @floatCast(slice[2])),
+                .rmax = @as(T, @floatCast(slice[3])),
+                .alpha = @as(T, @floatCast(slice[4])),
             };
         }
         pub fn table_parameters(self: Self) [NPARAMS]T {
@@ -260,6 +260,7 @@ fn LinEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
         eline: T,
         rmin: T,
         rmax: T,
+        rcut: T,
         alpha: T,
         weights: [Nbins]T,
 
@@ -284,8 +285,9 @@ fn LinEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
                 .eline = @as(T, @floatCast(slice[2])),
                 .rmin = @as(T, @floatCast(slice[3])),
                 .rmax = @as(T, @floatCast(slice[4])),
-                .alpha = @as(T, @floatCast(slice[5])),
-                .weights = read_weights(slice, 6),
+                .rcut = @as(T, @floatCast(slice[5])),
+                .alpha = @as(T, @floatCast(slice[6])),
+                .weights = read_weights(slice, 7),
             };
         }
 
@@ -301,8 +303,9 @@ fn LinEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
                 .eline = 1,
                 .rmin = @as(T, @floatCast(slice[2])),
                 .rmax = @as(T, @floatCast(slice[3])),
-                .alpha = @as(T, @floatCast(slice[4])),
-                .weights = read_weights(slice, 5),
+                .rcut = @as(T, @floatCast(slice[4])),
+                .alpha = @as(T, @floatCast(slice[5])),
+                .weights = read_weights(slice, 6),
             };
         }
 
@@ -351,7 +354,7 @@ inline fn kerr_lin_emisN(
         emissivity.LinInterpEmissivity(f32, Nemis).init(
             parameters.weights,
             parameters.rmin,
-            parameters.rmax,
+            parameters.rcut,
             parameters.alpha,
         );
 
@@ -400,7 +403,7 @@ inline fn kerr_conv_emisN(
         emissivity.LinInterpEmissivity(f32, Nemis).init(
             parameters.weights,
             parameters.rmin,
-            parameters.rmax,
+            parameters.rcut,
             parameters.alpha,
         );
 
@@ -558,7 +561,7 @@ test "smoke test all" {
     try smokeTestModel(domain, kline, &[_]f64{ 0.998, 60.0, 6.4, 0.0, 1.0, 400.0 });
     try smokeTestModel(domain, kline, &[_]f64{ 0.998, 60.0, 6.4, 0.0, 0.0, 400.0 });
 
-    try smokeTestModel(domain, kconv5, &[_]f64{ 0.998, 60.0, 1.0, 400.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0 });
+    try smokeTestModel(domain, kconv5, &[_]f64{ 0.998, 60.0, 1.0, 400.0, 100.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0 });
     // with zero emissivities
-    try smokeTestModel(domain, kconv5, &[_]f64{ 0.998, 60.0, 1.0, 400.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0 });
+    try smokeTestModel(domain, kconv5, &[_]f64{ 0.998, 60.0, 1.0, 400.0, 100.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0 });
 }
