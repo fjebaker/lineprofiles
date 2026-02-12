@@ -48,7 +48,7 @@ jobs:
       - name: Move artifact
         run: mv zig-out/lib/libxsklineprofiles.* ./xspec
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v6
         with:
           name: ${{matrix.target}}-lineprofiles.tar.gz
           path: ./xspec
@@ -59,7 +59,7 @@ jobs:
     container: fjebaker/heasoft:ci-6.33.1-amd64
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v7
         with:
           name: x86_64-linux-gnu-lineprofiles.tar.gz
       - name: Unpack and locate
