@@ -505,6 +505,27 @@ pub export fn kconv5(
     );
 }
 
+pub export fn kconv10(
+    energy_ptr: *const f64,
+    n_flux: c_int,
+    parameters_ptr: *const f64,
+    spectrum: c_int,
+    flux_ptr: *f64,
+    flux_variance_ptr: *f64,
+    init_ptr: *const u8,
+) callconv(.c) void {
+    return kerr_conv_emisN(
+        10,
+        energy_ptr,
+        n_flux,
+        parameters_ptr,
+        spectrum,
+        flux_ptr,
+        flux_variance_ptr,
+        init_ptr,
+    );
+}
+
 fn smokeTestModel(domain: []const f64, comptime f: anytype, params: []const f64) !void {
     const output = try std.testing.allocator.alloc(f64, domain.len - 1);
     defer std.testing.allocator.free(output);
