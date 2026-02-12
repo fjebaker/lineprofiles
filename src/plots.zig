@@ -120,12 +120,12 @@ pub fn main() !void {
     { // additive model
         var setup = try TestSetup.init(allocator, 0.1, 12.0, 300);
         defer setup.deinit();
-        try setup.setParams(&[_]f64{ 0.998, 40, 6.4, 3.0, 0.0, 50.0 });
+        try setup.setParams(&[_]f64{ 0.998, 70, 6.4, 3.0, 0.0, 50.0 });
 
-        for (0..100) |i| {
-            std.debug.print("{d}\n", .{i});
-            setup.call(xspec.kline);
-        }
+        // for (0..100) |i| {
+        //     std.debug.print("{d}\n", .{i});
+        //     setup.call(xspec.kline);
+        // }
 
         try plotxy(
             allocator,
@@ -138,9 +138,9 @@ pub fn main() !void {
     { // 5-additive model
         var setup = try TestSetup.init(allocator, 0.1, 12.0, 1000);
         defer setup.deinit();
-        try setup.setParams(&[_]f64{ 0.998, 40, 6.4, 1.0, 50.0, 3.0, 1.0, 2.0, 4.0, 5.0, 2.0 });
+        try setup.setParams(&[_]f64{ 0.998, 80, 6.4, 1.0, 50.0, 3.0, 1.0, 2.0, 4.0, 5.0, 2.0 });
 
-        for (0..100) |i| {
+        for (0..1) |i| {
             std.debug.print("{d}\n", .{i});
             setup.call(xspec.kline5);
         }

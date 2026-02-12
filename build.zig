@@ -1,4 +1,17 @@
 const std = @import("std");
+pub fn addTracy(b: *std.Build, step: *std.Build.Step.Compile) !void {
+    step.want_lto = false;
+    step.addCSourceFile(
+        .{
+            .file = b.path("../tracy/public/TracyClient.cpp"),
+            .flags = &.{
+                "-DTRACY_ENABLE=1",
+                "-fno-sanitize=undefined",
+            },
+        },
+    );
+    step.linkLibCpp();
+}
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -7,13 +20,20 @@ pub fn build(b: *std.Build) void {
     const zfits = b.dependency("zfits", .{ .target = target, .optimize = optimize });
     const zfitsio = zfits.module("zfitsio");
 
+    const tracy = b.option(bool, "tracy", "Compile against tracy client") orelse false;
+    var opts = b.addOptions();
+    opts.addOption(bool, "tracy_enabled", tracy);
+
     const xspec = b.addLibrary(.{
         .name = "xsklineprofiles",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/xspec-wrapper.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{.{ .name = "zfitsio", .module = zfitsio }},
+            .imports = &.{
+                .{ .name = "zfitsio", .module = zfitsio },
+                .{ .name = "options", .module = opts.createModule() },
+            },
         }),
     });
 
@@ -27,15 +47,22 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/plots.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{.{ .name = "zfitsio", .module = zfitsio }},
+            .imports = &.{
+                .{ .name = "zfitsio", .module = zfitsio },
+                .{ .name = "options", .module = opts.createModule() },
+            },
         }),
     });
 
+    if (tracy) {
+        try addTracy(b, plots);
+    }
+
     const plots_step = b.step("plots", "Create debugging plots");
     const install_plots = b.addInstallArtifact(plots, .{});
-    const run_plots = b.addRunArtifact(plots);
+    // const run_plots = b.addRunArtifact(plots);
     plots_step.dependOn(&install_plots.step);
-    plots_step.dependOn(&run_plots.step);
+    // plots_step.dependOn(&run_plots.step);
 
     const fuzz = b.addExecutable(.{
         .name = "fuzz",

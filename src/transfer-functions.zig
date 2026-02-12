@@ -1,5 +1,6 @@
 const std = @import("std");
 const util = @import("utils.zig");
+const tracy = @import("tracy.zig");
 
 const Integrator = @import("Integrator.zig");
 const Emissivity = @import("emissivity.zig").Emissivity;
@@ -137,6 +138,9 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
         }
 
         pub fn stage_radius(self: *Self, r: T) void {
+            var tctx = tracy.trace(@src());
+            defer tctx.end();
+
             self.current_r = r;
             // radii are reversed
             const start = if (r > self.tf.radii[self.last_r_index])
@@ -191,7 +195,7 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             self.cache_gmin = (gmin1 - gmin0) * factor + gmin0;
         }
 
-        inline fn get_gstar_interpolating_factor(
+        fn get_gstar_interpolating_factor(
             self: *const Self,
             gstar: T,
         ) ?util.ValueIndex(T) {
@@ -253,7 +257,8 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             allocator.free(self.cache_lower);
         }
 
-        inline fn integrand2(self: *const Self, g: T, gstar: T) T {
+        fn integrand2(self: *const Self, g: T, gstar: T) T {
+            // TODO: this is where to optimize
             const fs = self.branches_at_gstar(gstar);
             // combine the branches
             const f = fs.upper + fs.lower;
