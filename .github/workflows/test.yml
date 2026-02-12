@@ -18,9 +18,9 @@ jobs:
         with:
           submodules: recursive
       - name: Setup zig
-        uses: goto-bus-stop/setup-zig@v2
+        uses: mlugg/setup-zig@v2
         with:
-          version: 0.12.0-dev.3667+77abd3a96
+          version: 0.15.2
       - name: Fetch the tablemodel
         run: |
           wget 'https://github.com/fjebaker/lineprofiles/releases/download/v0.1.0/kerr-transfer-functions-v0.1.0.zip'
@@ -40,9 +40,9 @@ jobs:
         with:
           submodules: recursive
       - name: Setup zig
-        uses: goto-bus-stop/setup-zig@v2
+        uses: mlugg/setup-zig@v2
         with:
-          version: 0.12.0-dev.3667+77abd3a96
+          version: 0.15.2
       - name: Build and cache
         run: zig build xspec -Doptimize=ReleaseFast -Dtarget=${{matrix.target}}
       - name: Move artifact
