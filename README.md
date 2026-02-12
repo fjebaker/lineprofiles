@@ -85,6 +85,17 @@ A number of different models are included in the source code, and additional mod
 | `rout`       | Outer radius of the accretion disc                                                         |
 | `e1` to `e5` | Emissivity interpolation knots (see [Emissivity interpolation](#emissivity-interpolation)) |
 
+- `kconv10`: the same as `kconv5` but with 10 parameters for the emissivity interpolation.
+
+| Parameter     | Description                                                                                |
+| ------------- | ------------------------------------------------------------------------------------------ |
+| `a`           | Unitless black hole spin                                                                   |
+| `incl`        | Observer inclination $\theta$ (degrees)                                                    |
+| `alpha`       | Emissivity powerlaw index beyond `e5`                                                      |
+| `rmin`        | Inner radius of the accretion disc                                                         |
+| `rout`        | Outer radius of the accretion disc                                                         |
+| `e1` to `e10` | Emissivity interpolation knots (see [Emissivity interpolation](#emissivity-interpolation)) |
+
 ## Emissivity interpolation
 
 The emissivity function in `klineN` and `kconvN` is calculated with a linear interpolation in $\log \varepsilon$, $\log r$ space; that is to say, the power law index is piecewise constant between $N$ knots $\vec{k} = (r_1, r_2, \ldots, r_N)$:
@@ -110,4 +121,3 @@ For example, the ionizing flux of a lamp post corona around a maximally spinning
 <p align="center" pa="0" ma="0">
 <img width="600px" src="assets/emissivity-interpolation.svg" alt=""/>
 </p>
-
