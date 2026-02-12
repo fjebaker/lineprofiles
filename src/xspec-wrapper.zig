@@ -7,6 +7,7 @@ const convolution = @import("convolution.zig");
 
 // number of parameters in the table
 const NPARAMS = 2;
+const DATA_DIR_ENV_VAR = "KLINE_PROF_DATA_DIR";
 const MODELPATH = "kerr-transfer-functions.fits";
 const MSG_PREFIX = "kerrlineprofile: ";
 
@@ -26,7 +27,7 @@ pub fn getModelPath() ![]const u8 {
     return data_file orelse {
         const root = std.process.getEnvVarOwned(
             allocator,
-            "KLINE_PROF_DATA_DIR",
+            DATA_DIR_ENV_VAR,
         ) catch |err|
             if (err == error.EnvironmentVariableNotFound)
                 try allocator.dupe(u8, ".")
@@ -36,7 +37,7 @@ pub fn getModelPath() ![]const u8 {
         defer allocator.free(root);
         data_file = try std.fs.path.join(allocator, &.{ root, MODELPATH });
 
-        debugPrint("reading data from '{s}'\n", .{data_file.?});
+        debugPrint("Using table path '{s}'\n", .{data_file.?});
 
         return data_file.?;
     };
@@ -45,7 +46,7 @@ pub fn getModelPath() ![]const u8 {
 var verbose = true;
 
 // refinement for the energy grid
-const REFINEMENT = 5;
+const REFINEMENT = 3;
 
 // convolution has a fixed bin width for the model
 // that is to say, the model is evaluated on a grid
@@ -112,17 +113,14 @@ fn convolve_setup() !void {
     conv_flux = model_flux;
 }
 
-fn refine_grid(comptime T: type, grid: anytype, norm: T) void {
+fn refine_grid(comptime T: type, grid: anytype, norm: T) !void {
+    // don't do more than 2000
     const N = (grid.len - 1) * REFINEMENT;
     if (N != g_grid.len) {
         allocator.free(g_grid);
-        g_grid = allocator.alloc(T, N) catch {
-            @panic("kerrlineprofile: Failed to refine energy grid.");
-        };
+        g_grid = try allocator.alloc(T, N);
         allocator.free(flux_cache);
-        flux_cache = allocator.alloc(T, N - 1) catch {
-            @panic("kerrlineprofile: Failed to refine flux cache.");
-        };
+        flux_cache = try allocator.alloc(T, N - 1);
     }
     util.refine_grid(T, grid, g_grid, REFINEMENT, norm);
 }
@@ -133,19 +131,20 @@ fn integrate_lineprofile(
     flux: []f64,
     params: anytype,
     emis: anytype,
-) void {
+) !void {
     // do we need to do first time setup?
     var lp = profile orelse blk: {
-        setup() catch |e| {
-            debugPrint("error: {any}\n", .{e});
-            @panic("kerrlineprofile: fatal: COULD NOT INITIALIZE MODEL.");
-        };
+        try setup();
         break :blk profile.?;
     };
 
     // refine our grids
-    refine_grid(T, energy, params.eline);
-    set_radial_grid(T, params.rmin, params.rmax);
+    try refine_grid(T, energy, params.eline);
+    set_radial_grid(
+        T,
+        @max(r_grid[0], params.rmin),
+        @min(params.rmax, r_grid[r_grid.len - 1]),
+    );
 
     // zero the flux cache
     for (flux_cache) |*f| f.* = 0;
@@ -182,23 +181,17 @@ fn kerr_convolve(
     flux: []f64,
     parameters: anytype,
     emis: anytype,
-) void {
+) !void {
     const conv_energy = conv_g_grid orelse blk: {
-        convolve_setup() catch |e| {
-            debugPrint("error: {any}\n", .{e});
-            @panic("kerrlineprofile: fatal: COULD NOT ALLOCATE CONVOLUTION MEMORY.");
-        };
+        try convolve_setup();
         break :blk conv_g_grid.?;
     };
 
     // invoke the model
-    integrate_lineprofile(f32, conv_energy, conv_flux, parameters, emis);
+    try integrate_lineprofile(f32, conv_energy, conv_flux, parameters, emis);
 
     // make a copy of the flux to use in calculating Toeplitz
-    const flux_copy = allocator.dupe(f64, flux) catch |e| {
-        debugPrint("error: {any}\n", .{e});
-        @panic("kerrlineprofile: fatal: COULD NOT DUPE FLUX ARRAY.");
-    };
+    const flux_copy = try allocator.dupe(f64, flux);
     defer allocator.free(flux_copy);
 
     // convolve and write result directly into output array
@@ -310,6 +303,12 @@ fn LinEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
         pub fn table_parameters(self: Self) [NPARAMS]T {
             return [_]T{ self.a, self.inclination };
         }
+
+        // pub fn checkParameters(self: Self) void {
+        //     self.a = std.math.clamp(self.a, -0.998, 0.998);
+        //     self.inclination = std.math.clamp(self.a, 2, 88);
+        //     self.rmin = std.math.clamp(self.rmin, 2, 88);
+        // }
     };
 }
 
@@ -335,14 +334,33 @@ inline fn kerr_lin_emisN(
     const energy = @as([*]const f64, @ptrCast(energy_ptr))[0 .. N + 1];
     const flux = @as([*]f64, @ptrCast(flux_ptr))[0..N];
 
-    const parameters = LinEmisParameters(f32, Nemis).from_ptr(parameters_ptr);
-    const lin_emis = emissivity.LinInterpEmissivity(f32, Nemis).init(
-        parameters.weights,
-        parameters.rmin,
-        parameters.rmax,
-        parameters.alpha,
-    );
-    integrate_lineprofile(f32, energy, flux, parameters, lin_emis);
+    const parameters = if (Nemis == 1)
+        Parameters(f32).from_ptr(parameters_ptr)
+    else
+        LinEmisParameters(f32, Nemis).from_ptr(parameters_ptr);
+
+    const emis = if (Nemis == 1)
+        emissivity.PowerLawEmissivity(f32).init(-parameters.alpha)
+    else
+        emissivity.LinInterpEmissivity(f32, Nemis).init(
+            parameters.weights,
+            parameters.rmin,
+            parameters.rmax,
+            parameters.alpha,
+        );
+
+    integrate_lineprofile(f32, energy, flux, parameters, emis) catch |e| {
+        if (@errorReturnTrace()) |t| std.debug.dumpStackTrace(t.*);
+        switch (e) {
+            error.FileNotFound => std.log.err(
+                "{s}Failed to find table model. Set the {s} environment variable to where {s} is located",
+                .{ MSG_PREFIX, DATA_DIR_ENV_VAR, MODELPATH },
+            ),
+            else => std.log.err("{s}{any}", .{ MSG_PREFIX, e }),
+        }
+        std.log.err("{s}MODEL OUTPUT SET TO ZERO", .{MSG_PREFIX});
+        @memset(flux, 0);
+    };
 }
 
 inline fn kerr_conv_emisN(
@@ -365,15 +383,32 @@ inline fn kerr_conv_emisN(
     const energy = @as([*]const f64, @ptrCast(energy_ptr))[0 .. N + 1];
     const flux = @as([*]f64, @ptrCast(flux_ptr))[0..N];
 
-    const parameters = LinEmisParameters(f32, Nemis).from_ptr_conv(parameters_ptr);
-    const lin_emis = emissivity.LinInterpEmissivity(f32, Nemis).init(
-        parameters.weights,
-        parameters.rmin,
-        parameters.rmax,
-        parameters.alpha,
-    );
+    const parameters = if (Nemis == 1)
+        Parameters(f32).from_ptr(parameters_ptr)
+    else
+        LinEmisParameters(f32, Nemis).from_ptr(parameters_ptr);
 
-    kerr_convolve(energy, flux, parameters, lin_emis);
+    const emis = if (Nemis == 1)
+        emissivity.PowerLawEmissivity(f32).init(-parameters.alpha)
+    else
+        emissivity.LinInterpEmissivity(f32, Nemis).init(
+            parameters.weights,
+            parameters.rmin,
+            parameters.rmax,
+            parameters.alpha,
+        );
+
+    kerr_convolve(energy, flux, parameters, emis) catch |e| {
+        switch (e) {
+            error.FileNotFound => std.log.err(
+                "{s}Failed to find table model. Set the {s} environment variable to where {s} is located",
+                .{ MSG_PREFIX, DATA_DIR_ENV_VAR, MODELPATH },
+            ),
+            else => std.log.err("{s} {any}", .{ MSG_PREFIX, e }),
+        }
+        std.log.err("{s}MODEL OUTPUT SET TO ZERO", .{MSG_PREFIX});
+        @memset(flux, 0);
+    };
 }
 
 // XSPEC API
@@ -388,20 +423,16 @@ pub export fn kline(
     flux_variance_ptr: *f64,
     init_ptr: *const u8,
 ) callconv(.c) void {
-    // unused
-    _ = spectrum;
-    _ = flux_variance_ptr;
-    _ = init_ptr;
-
-    const N = @as(usize, @intCast(n_flux));
-    // convert to slices
-    const energy = @as([*]const f64, @ptrCast(energy_ptr))[0 .. N + 1];
-    const flux = @as([*]f64, @ptrCast(flux_ptr))[0..N];
-
-    const parameters = Parameters(f32).from_ptr(parameters_ptr);
-    const fixed_emis = emissivity.PowerLawEmissivity(f32).init(-parameters.alpha);
-
-    integrate_lineprofile(f32, energy, flux, parameters, fixed_emis);
+    return kerr_lin_emisN(
+        1,
+        energy_ptr,
+        n_flux,
+        parameters_ptr,
+        spectrum,
+        flux_ptr,
+        flux_variance_ptr,
+        init_ptr,
+    );
 }
 
 pub export fn kconv(
@@ -414,20 +445,16 @@ pub export fn kconv(
     flux_variance_ptr: *f64,
     init_ptr: *const u8,
 ) callconv(.c) void {
-    // unused
-    _ = spectrum;
-    _ = flux_variance_ptr;
-    _ = init_ptr;
-
-    const N = @as(usize, @intCast(n_flux));
-    // convert to slices
-    const energy = @as([*]const f64, @ptrCast(energy_ptr))[0 .. N + 1];
-    const flux = @as([*]f64, @ptrCast(flux_ptr))[0..N];
-
-    const parameters = Parameters(f32).from_ptr_conv(parameters_ptr);
-    const fixed_emis = emissivity.PowerLawEmissivity(f32).init(-parameters.alpha);
-
-    kerr_convolve(energy, flux, parameters, fixed_emis);
+    return kerr_conv_emisN(
+        1,
+        energy_ptr,
+        n_flux,
+        parameters_ptr,
+        spectrum,
+        flux_ptr,
+        flux_variance_ptr,
+        init_ptr,
+    );
 }
 
 pub export fn kline5(
@@ -439,7 +466,16 @@ pub export fn kline5(
     flux_variance_ptr: *f64,
     init_ptr: *const u8,
 ) callconv(.c) void {
-    return kerr_lin_emisN(5, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
+    return kerr_lin_emisN(
+        5,
+        energy_ptr,
+        n_flux,
+        parameters_ptr,
+        spectrum,
+        flux_ptr,
+        flux_variance_ptr,
+        init_ptr,
+    );
 }
 
 pub export fn kconv5(
@@ -451,7 +487,16 @@ pub export fn kconv5(
     flux_variance_ptr: *f64,
     init_ptr: *const u8,
 ) callconv(.c) void {
-    return kerr_conv_emisN(5, energy_ptr, n_flux, parameters_ptr, spectrum, flux_ptr, flux_variance_ptr, init_ptr);
+    return kerr_conv_emisN(
+        5,
+        energy_ptr,
+        n_flux,
+        parameters_ptr,
+        spectrum,
+        flux_ptr,
+        flux_variance_ptr,
+        init_ptr,
+    );
 }
 
 fn smokeTestModel(domain: []const f64, comptime f: anytype, params: []const f64) !void {

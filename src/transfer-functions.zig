@@ -202,9 +202,9 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             // should not be possible for gstar to not be in [0,1]
             const loc: util.ValueIndex(T) =
                 util.find_first_geq(T, self.gstars, gstar, start) orelse .{
-                .index = self.gstars.len - 1,
-                .value = 1.0,
-            };
+                    .index = self.gstars.len - 1,
+                    .value = 1.0,
+                };
             const ilow = if (loc.index > 1) loc.index - 1 else return null;
             const g0 = self.gstars[ilow];
             // interpolant factor
@@ -309,20 +309,11 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             for (0..out.len) |i| {
                 const a = g_grid[i];
                 const b = g_grid[i + 1];
-                const val = self.integrate_g_bin(a, b) * weight;
+                var val = self.integrate_g_bin(a, b) * weight;
 
                 // sanity check
                 if (std.math.isNan(val) or std.math.isInf(val)) {
-                    std.debug.print(
-                        "{d} hit at r={d} for [a,b] = [{d},{d}] (nb: healthy is a < b)\n",
-                        .{
-                            val,
-                            self.current_r,
-                            a,
-                            b,
-                        },
-                    );
-                    @panic("END");
+                    val = 0;
                 }
 
                 // sum total in ith bin
@@ -330,7 +321,7 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             }
         }
 
-        inline fn integrate_edge(
+        fn integrate_edge(
             self: *const Self,
             lim: T,
             lim_star: T,

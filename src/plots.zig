@@ -9,15 +9,15 @@ fn plotxy(
     y: []const T,
     filename: []const u8,
 ) !void {
-    var buf = std.ArrayList(u8).init(alloc);
-    defer buf.deinit();
+    var buf = std.ArrayList(u8).empty;
+    defer buf.deinit(alloc);
 
-    var writer = buf.writer();
+    var writer = buf.writer(alloc).adaptToNewApi(&.{});
     for (x, y) |i, j| {
-        try writer.print("{d} {d}\n", .{ i, j });
+        try writer.new_interface.print("{d} {d}\n", .{ i, j });
     }
 
-    var cmd = std.ChildProcess.init(
+    var cmd = std.process.Child.init(
         &[_][]const u8{
             "graph",
             "-T",
@@ -34,19 +34,19 @@ fn plotxy(
     cmd.stdout_behavior = .Pipe;
     cmd.stderr_behavior = .Pipe;
 
-    var output = std.ArrayList(u8).init(alloc);
-    defer output.deinit();
+    var output = std.ArrayList(u8).empty;
+    defer output.deinit(alloc);
 
-    var err = std.ArrayList(u8).init(alloc);
-    defer err.deinit();
+    var err = std.ArrayList(u8).empty;
+    defer err.deinit(alloc);
 
     try cmd.spawn();
 
-    try cmd.stdin.?.writer().writeAll(buf.items);
+    try cmd.stdin.?.writeAll(buf.items);
     cmd.stdin.?.close();
     cmd.stdin = null;
 
-    try cmd.collectOutput(&output, &err, 1 << 16);
+    try cmd.collectOutput(alloc, &output, &err, 1 << 16);
 
     _ = try cmd.wait();
 
@@ -120,9 +120,30 @@ pub fn main() !void {
     { // additive model
         var setup = try TestSetup.init(allocator, 0.1, 12.0, 300);
         defer setup.deinit();
-        try setup.setParams(&[_]f64{ 0.998, 40, 6.4, 3.0, 1.0, 50.0 });
+        try setup.setParams(&[_]f64{ 0.998, 40, 6.4, 3.0, 0.0, 50.0 });
 
-        setup.call(xspec.kline);
+        for (0..100) |i| {
+            std.debug.print("{d}\n", .{i});
+            setup.call(xspec.kline);
+        }
+
+        try plotxy(
+            allocator,
+            f64,
+            setup.energy[0 .. setup.energy.len - 1],
+            setup.flux,
+            "additive-example.png",
+        );
+    }
+    { // 5-additive model
+        var setup = try TestSetup.init(allocator, 0.1, 12.0, 1000);
+        defer setup.deinit();
+        try setup.setParams(&[_]f64{ 0.998, 40, 6.4, 1.0, 50.0, 3.0, 1.0, 2.0, 4.0, 5.0, 2.0 });
+
+        for (0..100) |i| {
+            std.debug.print("{d}\n", .{i});
+            setup.call(xspec.kline5);
+        }
 
         try plotxy(
             allocator,
@@ -136,7 +157,7 @@ pub fn main() !void {
     { // convolutional model
         var setup = try TestSetup.init(allocator, 0.1, 12.0, 300);
         defer setup.deinit();
-        try setup.setParams(&[_]f64{ 0.998, 40, 3.0, 1.0, 50.0 });
+        try setup.setParams(&[_]f64{ 0.998, 40, 3.0, 0.0, 50.0 });
 
         // init delta flux
         setup.flux[150] = 1;
