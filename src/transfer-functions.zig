@@ -258,7 +258,7 @@ pub fn InterpolatingTransferFunction(comptime T: type) type {
             // combine the branches
             const f = fs.upper + fs.lower;
             const denom = std.math.sqrt(gstar * (1 - gstar)) * (self.cache_gmax - self.cache_gmin);
-            return f * std.math.pow(T, g, 3) / denom;
+            return f * g * g * g / denom;
         }
 
         fn integrand(self: *const Self, g: T) T {
