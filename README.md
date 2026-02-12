@@ -46,9 +46,9 @@ A number of different models are included in the source code, and additional mod
 | `a`       | Unitless black hole spin                           |
 | `incl`    | Observer inclination $\theta$ (degrees)            |
 | `eline`   | Energy of central line (e.g. Fe K$\alpha$ 6.4 keV) |
-| `alpha`   | Emissivity powerlaw index                          |
 | `rmin`    | Inner radius of the accretion disc                 |
 | `rout`    | Outer radius of the accretion disc                 |
+| `alpha`   | Emissivity powerlaw index                          |
 
 - `kline5`: lineprofiles with emissivity given as an interpolated power-law between 5 knots.
 
@@ -57,9 +57,10 @@ A number of different models are included in the source code, and additional mod
 | `a`          | Unitless black hole spin                                                                   |
 | `incl`       | Observer inclination $\theta$ (degrees)                                                    |
 | `eline`      | Energy of central line (e.g. Fe K$\alpha$ 6.4 keV)                                         |
-| `alpha`      | Emissivity powerlaw index beyond `e5`                                                      |
 | `rmin`       | Inner radius of the accretion disc                                                         |
 | `rout`       | Outer radius of the accretion disc                                                         |
+| `rcut`       | Radius at which the last emissivity knot is fixed.                                         |
+| `alpha`      | Emissivity powerlaw index beyond `e5`                                                      |
 | `e1` to `e5` | Emissivity interpolation knots (see [Emissivity interpolation](#emissivity-interpolation)) |
 
 ### Convolutional
@@ -70,9 +71,9 @@ A number of different models are included in the source code, and additional mod
 | --------- | --------------------------------------- |
 | `a`       | Unitless black hole spin                |
 | `incl`    | Observer inclination $\theta$ (degrees) |
-| `alpha`   | Emissivity powerlaw index               |
 | `rmin`    | Inner radius of the accretion disc      |
 | `rout`    | Outer radius of the accretion disc      |
+| `alpha`   | Emissivity powerlaw index               |
 
 - `kconv5`: convolutional analog of `kline5`.
 
@@ -80,9 +81,10 @@ A number of different models are included in the source code, and additional mod
 | ------------ | ------------------------------------------------------------------------------------------ |
 | `a`          | Unitless black hole spin                                                                   |
 | `incl`       | Observer inclination $\theta$ (degrees)                                                    |
-| `alpha`      | Emissivity powerlaw index beyond `e5`                                                      |
 | `rmin`       | Inner radius of the accretion disc                                                         |
 | `rout`       | Outer radius of the accretion disc                                                         |
+| `rcut`       | Radius at which the last emissivity knot is fixed.                                         |
+| `alpha`      | Emissivity powerlaw index beyond `e5`                                                      |
 | `e1` to `e5` | Emissivity interpolation knots (see [Emissivity interpolation](#emissivity-interpolation)) |
 
 - `kconv10`: the same as `kconv5` but with 10 parameters for the emissivity interpolation.
@@ -91,9 +93,10 @@ A number of different models are included in the source code, and additional mod
 | ------------- | ------------------------------------------------------------------------------------------ |
 | `a`           | Unitless black hole spin                                                                   |
 | `incl`        | Observer inclination $\theta$ (degrees)                                                    |
-| `alpha`       | Emissivity powerlaw index beyond `e5`                                                      |
 | `rmin`        | Inner radius of the accretion disc                                                         |
 | `rout`        | Outer radius of the accretion disc                                                         |
+| `rcut`        | Radius at which the last emissivity knot is fixed.                                         |
+| `alpha`       | Emissivity powerlaw index beyond `e5`                                                      |
 | `e1` to `e10` | Emissivity interpolation knots (see [Emissivity interpolation](#emissivity-interpolation)) |
 
 ## Emissivity interpolation
@@ -101,18 +104,18 @@ A number of different models are included in the source code, and additional mod
 The emissivity function in `klineN` and `kconvN` is calculated with a linear interpolation in $\log \varepsilon$, $\log r$ space; that is to say, the power law index is piecewise constant between $N$ knots $\vec{k} = (r_1, r_2, \ldots, r_N)$:
 
 $$
-\varepsilon(r, \vec{k}) = \left\{ \begin{matrix}
-    \varepsilon_1, & r \leq r_1 \\
-    \varepsilon_2, & r_1 < r \leq r_2 \\
+\varepsilon(r, \vec{k}) \propto \begin{matrix}
+    r^{-\varepsilon_1}, & r \leq r_1 \\
+    r^{-\varepsilon_2}, & r_1 < r \leq r_2 \\
     \vdots & \\
-    \varepsilon_N, & r_N < r \leq r_\text{cut} \\
+    r^{-\varepsilon_N}, & r_N < r \leq r_\text{cut} \\
     r^{-\alpha} & \text{otherwise}
-\end{matrix}\right. ,
+\end{matrix}
 $$
 
-where the different $r_i$ are calculated as $N$ log linear intervals between the inner and some cutoff radius of the disc.
+where the different $r_i$ are calculated as $N$ log linear intervals between the inner and some cutoff radius of the disc. The normalisations of the emissivity are calculated so that the emissivity is joined into a piecewise curve (see figure below). This piecewise function applies over the region $r_{\text{in}}$ to $r_{\text{cut}}$, after which $r^{-alpha}$ is used for the emissivity profile.
 
-The cutoff radius $r_\text{cut}$ is under half of the outer radius of the disc in log space (see figure below). This is to fit the inner regions of the disc, where the majority of the variation in emissivity is expected.
+The lineprofiles are always normalised so that the area under the curve is one, due to the flexibility of the emissivity curves.
 
 This interpolation regime is in order to mimic the different emissivity functions of a disc irradiated by some arbitrary, axis-symmetric ionizing flux. The ionizing flux may itself be a consequence of different coronal models for the black hole. Fitting the emissivity functions should thereby allow the model to infer general properties about e.g. the morphology or position of the corona.
 
