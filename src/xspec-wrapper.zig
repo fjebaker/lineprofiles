@@ -393,9 +393,9 @@ inline fn kerr_conv_emisN(
     const flux = @as([*]f64, @ptrCast(flux_ptr))[0..N];
 
     const parameters = if (Nemis == 1)
-        Parameters(f32).from_ptr(parameters_ptr)
+        Parameters(f32).from_ptr_conv(parameters_ptr)
     else
-        LinEmisParameters(f32, Nemis).from_ptr(parameters_ptr);
+        LinEmisParameters(f32, Nemis).from_ptr_conv(parameters_ptr);
 
     const emis = if (Nemis == 1)
         emissivity.PowerLawEmissivity(f32).init(-parameters.alpha)
