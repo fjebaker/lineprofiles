@@ -26,7 +26,8 @@ data: $(DIST_DIR)/kerr-transfer-functions.fits
 $(DIST_DIR)/kerr-transfer-functions.fits:
 	curl -L \
 		https://github.com/fjebaker/lineprofiles/releases/download/v0.1.0/kerr-transfer-functions-v0.1.0.zip \
-		--output $@
+		--output $(DIST_DIR)/kerr-transfer-functions.zip
+	(cd $(DIST_DIR) && unzip kerr-transfer-functions.zip)
 
 _compile_for_xspec: $(DIST_DIR)/libxsklineprofiles.a
 	# delete everything that is not needed
