@@ -63,6 +63,11 @@ xspec-test:
 	rm -rf build
 	cp -r xspec build
 	cp zig-out/lib/libxsklineprofiles.a build
+	(cd build && \
+		echo "initpackage xsklineprofiles lmodel.dat .\n exit" | xspec)
+	rm build/libxsklineprofiles.so
+	$(SED_INPLACE) 's|-lXSFunctions|-lXSFunctions -L$(LIB_PATH) -Wl,-rpath,"$(LIB_PATH)" -l:libxsklineprofiles.a|g' \
+		build/Makefile
 	(cd build && echo "hmake \n exit \n" | xspec)
 	cp ./kerr-transfer-functions.fits build
 
