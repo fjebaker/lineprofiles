@@ -274,7 +274,7 @@ fn LinEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
         }
 
         pub fn from_ptr(ptr: *const f64) Self {
-            const N = 6 + Nbins;
+            const N = 7 + Nbins;
             const slice = @as([*]const f64, @ptrCast(ptr))[0..N];
             return .{
                 .a = @as(T, @floatCast(slice[0])),
@@ -292,7 +292,7 @@ fn LinEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
         }
 
         pub fn from_ptr_conv(ptr: *const f64) Self {
-            const N = 5 + Nbins;
+            const N = 6 + Nbins;
             const slice = @as([*]const f64, @ptrCast(ptr))[0..N];
             return .{
                 .a = @as(T, @floatCast(slice[0])),
@@ -564,4 +564,22 @@ test "smoke test all" {
     try smokeTestModel(domain, kconv5, &[_]f64{ 0.998, 60.0, 1.0, 400.0, 100.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0 });
     // with zero emissivities
     try smokeTestModel(domain, kconv5, &[_]f64{ 0.998, 60.0, 1.0, 400.0, 100.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0 });
+    try smokeTestModel(domain, kconv10, &[_]f64{
+        0.998,
+        60.0,
+        1.0,
+        400.0,
+        50.0,
+        3.0,
+        3.0,
+        3.0,
+        3.0,
+        3.0,
+        3.0,
+        3.0,
+        3.0,
+        3.0,
+        3.0,
+        3.0,
+    });
 }
