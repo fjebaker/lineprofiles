@@ -55,7 +55,7 @@ $(DIST_DIR)/libxsklineprofiles.a: $(DOWNLOAD_TARGET)
 
 $(DOWNLOAD_TARGET):
 	curl -L \
-		https://github.com/fjebaker/lineprofiles/releases/download/v0.1.2/$(DOWNLOAD_TARGET) \
+		https://github.com/fjebaker/lineprofiles/releases/download/v0.1.3/$(DOWNLOAD_TARGET) \
 		--output $(DOWNLOAD_TARGET)
 
 .PHONY: xspec-test
