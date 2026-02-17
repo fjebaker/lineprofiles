@@ -42,7 +42,7 @@ pub fn LinInterpEmissivity(comptime T: type, comptime N: comptime_int) type {
         pub fn init(powers: [N]T, rmin: T, rmax: T, alpha: T) Self {
             var radii: [N]T = undefined;
             var coeffs: [N]T = undefined;
-            var itt = util.RangeIterator(T).init(std.math.log10(rmin), rmax, N + 1);
+            var itt = util.RangeIterator(T).init(std.math.log10(rmin), std.math.log10(rmax), N + 1);
             _ = itt.next();
 
             for (&radii) |*r| r.* = itt.next().?;
