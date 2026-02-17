@@ -50,7 +50,7 @@ _compile_for_xspec: $(DIST_DIR)/libxsklineprofiles.a
 $(DIST_DIR)/libxsklineprofiles.a: $(DOWNLOAD_TARGET)
 	rm -rf $(DIST_DIR)
 	mkdir -p $(DIST_DIR)
-	cp $(DOWNLOAD_TARGET) $(DIST_DIR)
+	mv $(DOWNLOAD_TARGET) $(DIST_DIR)
 	(cd $(DIST_DIR) && unzip $(DOWNLOAD_TARGET) && rm -f ./$(DOWNLOAD_TARGET))
 
 $(DOWNLOAD_TARGET):
