@@ -353,7 +353,7 @@ inline fn kerr_lin_emisN(
     else
         emissivity.LinInterpEmissivity(f32, Nemis).init(
             parameters.weights,
-            parameters.rmin,
+            1.0,
             parameters.rcut,
             parameters.alpha,
         );
@@ -402,7 +402,7 @@ inline fn kerr_conv_emisN(
     else
         emissivity.LinInterpEmissivity(f32, Nemis).init(
             parameters.weights,
-            parameters.rmin,
+            1.0,
             parameters.rcut,
             parameters.alpha,
         );
