@@ -2,7 +2,7 @@
     .paths = .{""},
     .name = .lineprofiles,
     .fingerprint = 0x4adce52acc19cd64,
-    .version = "0.1.1",
+    .version = "0.1.4",
     .dependencies = .{
         .zfits = .{
             .url = "git+https://codeberg.org/fjebaker/zigFITSIO#6e3b08d51e19d5202d2716a6b8435499767edd97",
