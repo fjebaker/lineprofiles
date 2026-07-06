@@ -117,52 +117,70 @@ pub fn main() !void {
         "hello.png",
     );
 
-    { // additive model
-        var setup = try TestSetup.init(allocator, 0.1, 12.0, 300);
-        defer setup.deinit();
-        try setup.setParams(&[_]f64{ 0.998, 70, 6.4, 3.0, 0.0, 50.0 });
+    // { // additive model
+    //     var setup = try TestSetup.init(allocator, 0.1, 12.0, 300);
+    //     defer setup.deinit();
+    //     try setup.setParams(&[_]f64{ 0.998, 70, 6.4, 3.0, 0.0, 50.0 });
 
-        // for (0..100) |i| {
-        //     std.debug.print("{d}\n", .{i});
-        //     setup.call(xspec.kline);
-        // }
+    //     // for (0..100) |i| {
+    //     //     std.debug.print("{d}\n", .{i});
+    //     //     setup.call(xspec.kline);
+    //     // }
 
-        try plotxy(
-            allocator,
-            f64,
-            setup.energy[0 .. setup.energy.len - 1],
-            setup.flux,
-            "additive-example.png",
-        );
-    }
-    { // 5-additive model
-        var setup = try TestSetup.init(allocator, 0.1, 12.0, 1000);
-        defer setup.deinit();
-        try setup.setParams(&[_]f64{ 0.998, 80, 6.4, 1.0, 50.0, 3.0, 1.0, 2.0, 4.0, 5.0, 2.0 });
+    //     try plotxy(
+    //         allocator,
+    //         f64,
+    //         setup.energy[0 .. setup.energy.len - 1],
+    //         setup.flux,
+    //         "additive-example.png",
+    //     );
+    // }
+    // { // 5-additive model
+    //     var setup = try TestSetup.init(allocator, 0.1, 12.0, 500);
+    //     defer setup.deinit();
+    //     try setup.setParams(&[_]f64{ 0.998, 18, 6.4, 1.0, 50.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0 });
 
-        for (0..1) |i| {
-            std.debug.print("{d}\n", .{i});
-            setup.call(xspec.kline5);
-        }
+    //     // for (0..100) |i| {
+    //     //     std.debug.print("{d}\n", .{i});
+    //     //     setup.call(xspec.kline5);
+    //     // }
 
-        try plotxy(
-            allocator,
-            f64,
-            setup.energy[0 .. setup.energy.len - 1],
-            setup.flux,
-            "additive-example.png",
-        );
-    }
+    //     try plotxy(
+    //         allocator,
+    //         f64,
+    //         setup.energy[0 .. setup.energy.len - 1],
+    //         setup.flux,
+    //         "additive-example.png",
+    //     );
+    // }
 
     { // convolutional model
         var setup = try TestSetup.init(allocator, 0.1, 12.0, 300);
         defer setup.deinit();
-        try setup.setParams(&[_]f64{ 0.998, 40, 3.0, 0.0, 50.0 });
+        try setup.setParams(&[_]f64{
+            0.998,
+            70,
+            3.0,
+            400.0,
+            50.0,
+            3.0,
+            3.0,
+            8.557,
+            8.557,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+        });
 
         // init delta flux
         setup.flux[150] = 1;
-        setup.flux[200] = 1;
-        setup.call(xspec.kconv);
+        // setup.flux[200] = 1;
+        setup.call(xspec.kconv5);
         utils.normalize(f64, setup.flux);
 
         try plotxy(
