@@ -41,20 +41,26 @@ pub fn LinInterpEmissivity(comptime T: type, comptime N: comptime_int) type {
         /// rmax. Outside of rmax, applied alpha.
         pub fn init(powers: [N]T, rmin: T, rmax: T, alpha: T) Self {
             var radii: [N]T = undefined;
-            var coeffs: [N]T = undefined;
             var itt = util.RangeIterator(T).init(std.math.log10(rmin), std.math.log10(rmax), N + 1);
             _ = itt.next();
-
             for (&radii) |*r| r.* = itt.next().?;
-            calculateLogCoefficients(&coeffs, &radii, &powers, alpha);
+
+            return .initRadii(powers, radii, alpha);
+        }
+
+        pub fn initRadii(powers: [N]T, radii: [N]T, alpha: T) Self {
+            var coeffs: [N]T = undefined;
+            var radii_ = radii;
+
+            calculateLogCoefficients(&coeffs, &radii_, &powers, alpha);
 
             // exponentiate everything back to regular values
-            for (&radii) |*r| r.* = std.math.pow(T, 10, r.*);
+            for (&radii_) |*r| r.* = std.math.pow(T, 10, r.*);
             for (&coeffs) |*c| c.* = std.math.pow(T, 10, c.*);
 
             const em: Self = .{
                 .powers = powers,
-                .radii = radii,
+                .radii = radii_,
                 .alpha = alpha,
                 .coeffs = coeffs,
             };
