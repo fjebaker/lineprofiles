@@ -15,13 +15,16 @@ const REFINEMENT = 4;
 const FINE_G_BINS = 2000;
 const RADIAL_BINS = 1500;
 
-pub const EmissivityMode = enum { default };
+pub const EmissivityMode = enum { default, fixed_grid };
 
-pub fn EmissivityType(comptime T: type, comptime N: usize) type {
-    switch (N) {
-        0 => unreachable,
-        1 => return emissivity.PowerLawEmissivity(T),
-        else => return emissivity.LinInterpEmissivity(T, N),
+pub fn EmissivityType(comptime T: type, comptime N: usize, comptime mode: EmissivityMode) type {
+    switch (mode) {
+        .default => switch (N) {
+            0 => unreachable,
+            1 => return emissivity.PowerLawEmissivity(T),
+            else => return emissivity.LinInterpEmissivity(T, N),
+        },
+        .fixed_grid => return emissivity.LinInterpEmissivity(T, N),
     }
 }
 
@@ -38,13 +41,21 @@ pub fn initEmissivity(
     comptime N: usize,
     parameters: anytype,
     comptime mode: EmissivityMode,
-) EmissivityType(T, N) {
+) EmissivityType(T, N, mode) {
     switch (mode) {
         .default => {
             switch (N) {
                 1 => return .init(-parameters.alpha),
                 else => return .init(parameters.weights, 1.0, parameters.rcut, parameters.alpha),
             }
+        },
+        .fixed_grid => {
+            if (N != 4) unreachable;
+            return .initRadii(
+                parameters.weights,
+                .{ 6.0, 10.0, 31.62, parameters.rcut },
+                parameters.alpha,
+            );
         },
     }
 }
@@ -548,6 +559,28 @@ pub export fn kconv10(
     return kerr_conv_emisN(
         10,
         .default,
+        energy_ptr,
+        n_flux,
+        parameters_ptr,
+        spectrum,
+        flux_ptr,
+        flux_variance_ptr,
+        init_ptr,
+    );
+}
+
+pub export fn kconvfixed(
+    energy_ptr: *const f64,
+    n_flux: c_int,
+    parameters_ptr: *const f64,
+    spectrum: c_int,
+    flux_ptr: *f64,
+    flux_variance_ptr: *f64,
+    init_ptr: *const u8,
+) callconv(.c) void {
+    return kerr_conv_emisN(
+        4,
+        .fixed_grid,
         energy_ptr,
         n_flux,
         parameters_ptr,
