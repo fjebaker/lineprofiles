@@ -20,6 +20,8 @@ pub fn build(b: *std.Build) void {
     const zfits = b.dependency("zfits", .{ .target = target, .optimize = optimize });
     const zfitsio = zfits.module("zfitsio");
 
+    const clippy = b.dependency("clippy", .{ .target = target, .optimize = optimize });
+
     const tracy = b.option(bool, "tracy", "Compile against tracy client") orelse false;
     var opts = b.addOptions();
     opts.addOption(bool, "tracy_enabled", tracy);
@@ -56,8 +58,35 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    const exe = b.addExecutable(.{
+        .name = "kline",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "zfitsio", .module = zfitsio },
+                .{ .name = "options", .module = opts.createModule() },
+                .{ .name = "clippy", .module = clippy.module("clippy") },
+            },
+        }),
+    });
+
     if (tracy) {
         try addTracy(b, plots);
+        try addTracy(b, exe);
+    }
+
+    b.installArtifact(exe);
+
+    const run_step = b.step("run", "Run the app");
+    const run_cmd = b.addRunArtifact(exe);
+    run_step.dependOn(&run_cmd.step);
+
+    run_cmd.step.dependOn(b.getInstallStep());
+
+    if (b.args) |args| {
+        run_cmd.addArgs(args);
     }
 
     const plots_step = b.step("plots", "Create debugging plots");

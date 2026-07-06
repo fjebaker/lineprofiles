@@ -8,5 +8,9 @@
             .url = "git+https://codeberg.org/fjebaker/zigFITSIO#6e3b08d51e19d5202d2716a6b8435499767edd97",
             .hash = "zfits-0.0.1-NiJIwxFlXwDTcBWE0S0ljQmD96LKzIA6RmiXK2aHKu4i",
         },
+        .clippy = .{
+            .url = "git+https://codeberg.org/fjebaker/clippy?ref=0.15.2#a9109d10d2f9f59a506faf51907c4089d2ace579",
+            .hash = "clippy-0.4.1-BgbUoLyJAQAzVMryi5ejflC4tO_THVIQYDA43QsPBEyc",
+        },
     },
 }
