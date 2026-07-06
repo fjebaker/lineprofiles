@@ -78,11 +78,26 @@ pub fn LinInterpEmissivity(comptime T: type, comptime N: comptime_int) type {
 }
 
 test "emissivity interpolations" {
-    const em = LinInterpEmissivity(f32, 4).init(
+    const em1 = LinInterpEmissivity(f32, 4).init(
         [_]f32{ 5, 1, 3, 2 },
         1.0,
         50.0,
         3,
     );
-    _ = em;
+
+    // Jiachen said if `e1` is changed it doesn't change the result, so that's
+    // now a test:
+    const em2 = LinInterpEmissivity(f32, 4).init(
+        [_]f32{ 10, 1, 3, 2 },
+        1.0,
+        50.0,
+        3,
+    );
+
+    {
+        const e1 = em1.emissivity(2.0);
+        const e2 = em2.emissivity(2.0);
+        try std.testing.expectApproxEqAbs(0.011751883, e1, 1e-4);
+        try std.testing.expectApproxEqAbs(0.048828106, e2, 1e-4);
+    }
 }
