@@ -26,6 +26,7 @@ pub fn build(b: *std.Build) void {
 
     const xspec = b.addLibrary(.{
         .name = "xsklineprofiles",
+        .linkage = .static,
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/xspec-wrapper.zig"),
             .target = target,
@@ -34,6 +35,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "zfitsio", .module = zfitsio },
                 .{ .name = "options", .module = opts.createModule() },
             },
+            .pic = true,
         }),
     });
 

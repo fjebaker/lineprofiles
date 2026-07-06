@@ -16,57 +16,50 @@ endif
 
 LIB_PATH := $(abspath $(DIST_DIR))
 
-# TODO: why is it this strange file extension?
-DOWNLOAD_TARGET = $(OSTARGET)-lineprofiles.tar.gz.zip
+LIB_EXT = a
 
-all: _compile_for_xspec data
+all: _compile_for_xspec $(DIST_DIR)/kerr-transfer-functions.fits
+	@echo "Successfully compiled"
+	@echo "Use"
+	@echo ""
+	@echo "    lmod xsklineprofiles ./$(DIST_DIR)"
+	@echo ""
+	@echo "to load into XSPEC."
 
-data: $(DIST_DIR)/kerr-transfer-functions.fits
+$(DIST_DIR)/kerr-transfer-functions.fits: kerr-transfer-functions.fits
+	cp "$<" "$@"
 
-$(DIST_DIR)/kerr-transfer-functions.fits:
+kerr-transfer-functions.fits:
 	curl -L \
 		https://github.com/fjebaker/lineprofiles/releases/download/v0.1.0/kerr-transfer-functions-v0.1.0.zip \
 		--output $(DIST_DIR)/kerr-transfer-functions.zip
 	(cd $(DIST_DIR) && unzip kerr-transfer-functions.zip)
 
-_compile_for_xspec: $(DIST_DIR)/libxsklineprofiles.a
-	# delete everything that is not needed
-	rm -f \
-		 $(DIST_DIR)/lpack_klineprofiles.cxx \
-		 $(DIST_DIR)/lpack_klineprofiles.o \
-		 $(DIST_DIR)/Makefile \
-		 $(DIST_DIR)/pkgIndex.tcl \
-		 $(DIST_DIR)/x86_64-linux-gnu-lineprofiles.tar.gz.zip \
-		 $(DIST_DIR)/klineprofilesFunctionMap.cxx \
-		 $(DIST_DIR)/klineprofilesFunctionMap.h \
-		 $(DIST_DIR)/klineprofilesFunctionMap.o
+_compile_for_xspec: $(DIST_DIR)/libxsklineprofiles.$(LIB_EXT)
 	(cd $(DIST_DIR) && \
 		echo "initpackage xsklineprofiles lmodel.dat .\n exit" | xspec)
-	rm $(DIST_DIR)/libxsklineprofiles.$(SHARED_EXT)
-	$(SED_INPLACE) 's|-lXSFunctions|-lXSFunctions -L$(LIB_PATH) -Wl,-rpath,"$(LIB_PATH)" -l:libxsklineprofiles.a|g' \
+	rm $(DIST_DIR)/libxsklineprofiles.so
+	$(SED_INPLACE) 's|-lXSFunctions|-lXSFunctions -l:libxsklineprofiles.$(LIB_EXT)|g' \
 		$(DIST_DIR)/Makefile
 	(cd $(DIST_DIR) && echo "hmake \n exit" | xspec)
 
-$(DIST_DIR)/libxsklineprofiles.a: $(DOWNLOAD_TARGET)
-	rm -rf $(DIST_DIR)
+$(DIST_DIR)/libxsklineprofiles.$(LIB_EXT): zig-out/bin/libxsklineprofiles.$(LIB_EXT)
 	mkdir -p $(DIST_DIR)
-	mv $(DOWNLOAD_TARGET) $(DIST_DIR)
-	(cd $(DIST_DIR) && unzip $(DOWNLOAD_TARGET) && rm -f ./$(DOWNLOAD_TARGET))
+	cp ./zig-out/lib/libxsklineprofiles.$(LIB_EXT) $@
+	cp ./xspec/* $(DIST_DIR)
 
-$(DOWNLOAD_TARGET):
-	curl -L \
-		https://github.com/fjebaker/lineprofiles/releases/download/v0.1.3/$(DOWNLOAD_TARGET) \
-		--output $(DOWNLOAD_TARGET)
+zig-out/bin/libxsklineprofiles.$(LIB_EXT):
+	zig build --release=fast -Dtarget=x86_64-linux-musl xspec
 
 .PHONY: xspec-test
 xspec-test:
 	rm -rf build
 	cp -r xspec build
-	cp zig-out/lib/libxsklineprofiles.a build
+	cp zig-out/lib/libxsklineprofiles.$(LIB_EXT) build
 	(cd build && \
 		echo "initpackage xsklineprofiles lmodel.dat .\n exit" | xspec)
 	rm build/libxsklineprofiles.so
-	$(SED_INPLACE) 's|-lXSFunctions|-lXSFunctions -L$(LIB_PATH) -Wl,-rpath,"$(LIB_PATH)" -l:libxsklineprofiles.a|g' \
+	$(SED_INPLACE) 's|-lXSFunctions|-lXSFunctions -l:libxsklineprofiles.$(LIB_EXT)|g' \
 		build/Makefile
 	(cd build && echo "hmake \n exit \n" | xspec)
 	cp ./kerr-transfer-functions.fits build
@@ -74,3 +67,4 @@ xspec-test:
 .PHONY: clean
 clean:
 	rm -rf $(DIST_DIR)
+	rm -rf zig-out

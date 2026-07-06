@@ -5,8 +5,8 @@
     .version = "0.1.1",
     .dependencies = .{
         .zfits = .{
-            .url = "git+https://codeberg.org/fjebaker/zigfitsio#c4f1aab50ec7155235496b5286b55c82b1395d66",
-            .hash = "zfits-0.0.1-NiJIw7xkXwAgUfYdtercEC1hav09inVyEqhOzFcd385u",
+            .url = "git+https://codeberg.org/fjebaker/zigFITSIO#6e3b08d51e19d5202d2716a6b8435499767edd97",
+            .hash = "zfits-0.0.1-NiJIwxFlXwDTcBWE0S0ljQmD96LKzIA6RmiXK2aHKu4i",
         },
     },
 }
