@@ -15,6 +15,52 @@ const REFINEMENT = 4;
 const FINE_G_BINS = 2000;
 const RADIAL_BINS = 1500;
 
+pub const EmissivityMode = enum { default };
+
+pub fn EmissivityType(comptime T: type, comptime N: usize) type {
+    switch (N) {
+        0 => unreachable,
+        1 => return emissivity.PowerLawEmissivity(T),
+        else => return emissivity.LinInterpEmissivity(T, N),
+    }
+}
+
+pub fn ParameterType(comptime T: type, comptime N: usize) type {
+    switch (N) {
+        0 => unreachable,
+        1 => return Parameters(T),
+        else => return LinEmisParameters(T, N),
+    }
+}
+
+pub fn initEmissivity(
+    comptime T: type,
+    comptime N: usize,
+    parameters: anytype,
+    comptime mode: EmissivityMode,
+) EmissivityType(T, N) {
+    switch (mode) {
+        .default => {
+            switch (N) {
+                1 => return .init(-parameters.alpha),
+                else => return .init(parameters.weights, 1.0, parameters.rcut, parameters.alpha),
+            }
+        },
+    }
+}
+
+pub fn initParameters(
+    comptime T: type,
+    comptime N: usize,
+    parameters_ptr: anytype,
+    comptime mode: enum { conv, additive },
+) ParameterType(T, N) {
+    switch (mode) {
+        .additive => return .from_ptr(parameters_ptr),
+        .conv => return .from_ptr_conv(parameters_ptr),
+    }
+}
+
 fn debugPrint(comptime fmt: []const u8, args: anytype) void {
     if (!verbose) return;
 
@@ -325,6 +371,7 @@ fn LinEmisParameters(comptime T: type, comptime Nbins: comptime_int) type {
 
 inline fn kerr_lin_emisN(
     comptime Nemis: comptime_int,
+    comptime emissivity_mode: EmissivityMode,
     energy_ptr: *const f64,
     n_flux: c_int,
     parameters_ptr: *const f64,
@@ -343,20 +390,8 @@ inline fn kerr_lin_emisN(
     const energy = @as([*]const f64, @ptrCast(energy_ptr))[0 .. N + 1];
     const flux = @as([*]f64, @ptrCast(flux_ptr))[0..N];
 
-    const parameters = if (Nemis == 1)
-        Parameters(f32).from_ptr(parameters_ptr)
-    else
-        LinEmisParameters(f32, Nemis).from_ptr(parameters_ptr);
-
-    const emis = if (Nemis == 1)
-        emissivity.PowerLawEmissivity(f32).init(-parameters.alpha)
-    else
-        emissivity.LinInterpEmissivity(f32, Nemis).init(
-            parameters.weights,
-            1.0,
-            parameters.rcut,
-            parameters.alpha,
-        );
+    const parameters = initParameters(f32, Nemis, parameters_ptr, .additive);
+    const emis = initEmissivity(f32, Nemis, parameters, emissivity_mode);
 
     integrate_lineprofile(f32, energy, flux, parameters, emis) catch |e| {
         if (@errorReturnTrace()) |t| std.debug.dumpStackTrace(t.*);
@@ -374,6 +409,7 @@ inline fn kerr_lin_emisN(
 
 inline fn kerr_conv_emisN(
     comptime Nemis: comptime_int,
+    comptime emissivity_mode: EmissivityMode,
     energy_ptr: *const f64,
     n_flux: c_int,
     parameters_ptr: *const f64,
@@ -392,20 +428,8 @@ inline fn kerr_conv_emisN(
     const energy = @as([*]const f64, @ptrCast(energy_ptr))[0 .. N + 1];
     const flux = @as([*]f64, @ptrCast(flux_ptr))[0..N];
 
-    const parameters = if (Nemis == 1)
-        Parameters(f32).from_ptr_conv(parameters_ptr)
-    else
-        LinEmisParameters(f32, Nemis).from_ptr_conv(parameters_ptr);
-
-    const emis = if (Nemis == 1)
-        emissivity.PowerLawEmissivity(f32).init(-parameters.alpha)
-    else
-        emissivity.LinInterpEmissivity(f32, Nemis).init(
-            parameters.weights,
-            1.0,
-            parameters.rcut,
-            parameters.alpha,
-        );
+    const parameters = initParameters(f32, Nemis, parameters_ptr, .conv);
+    const emis = initEmissivity(f32, Nemis, parameters, emissivity_mode);
 
     kerr_convolve(energy, flux, parameters, emis) catch |e| {
         switch (e) {
@@ -434,6 +458,7 @@ pub export fn kline(
 ) callconv(.c) void {
     return kerr_lin_emisN(
         1,
+        .default,
         energy_ptr,
         n_flux,
         parameters_ptr,
@@ -456,6 +481,7 @@ pub export fn kconv(
 ) callconv(.c) void {
     return kerr_conv_emisN(
         1,
+        .default,
         energy_ptr,
         n_flux,
         parameters_ptr,
@@ -477,6 +503,7 @@ pub export fn kline5(
 ) callconv(.c) void {
     return kerr_lin_emisN(
         5,
+        .default,
         energy_ptr,
         n_flux,
         parameters_ptr,
@@ -498,6 +525,7 @@ pub export fn kconv5(
 ) callconv(.c) void {
     return kerr_conv_emisN(
         5,
+        .default,
         energy_ptr,
         n_flux,
         parameters_ptr,
@@ -519,6 +547,7 @@ pub export fn kconv10(
 ) callconv(.c) void {
     return kerr_conv_emisN(
         10,
+        .default,
         energy_ptr,
         n_flux,
         parameters_ptr,
