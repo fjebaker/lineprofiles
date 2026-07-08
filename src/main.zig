@@ -6,6 +6,7 @@ const util = @import("utils.zig");
 const tf = @import("transfer-functions.zig");
 const lp = @import("line-profile.zig");
 const xspec = @import("xspec-wrapper.zig");
+const emissivity = @import("emissivity.zig");
 
 test "main" {
     _ = tf;
@@ -38,14 +39,27 @@ test "index-lookups" {
 }
 
 const Kconv5Arguments = clippy.Arguments(
+    &.{},
+);
+
+const EmissivityArguments = clippy.Arguments(
     &.{
         .{
-            .arg = "--help",
-            .help = "Print this help message or help for a specific command.",
+            .arg = "--indices indexes",
+            .help = "Comma seperated emissivity index used in the fixed mode.",
+            .required = true,
         },
         .{
-            .arg = "--version",
-            .help = "Print version information.",
+            .arg = "--alpha alpha",
+            .help = "Powerlaw index.",
+            .argtype = f64,
+            .default = "3.0",
+        },
+        .{
+            .arg = "--rcut rcut",
+            .argtype = f64,
+            .default = "100.0",
+            .help = "Where the cutoff radius.",
         },
     },
 );
@@ -56,6 +70,7 @@ const HelpArguments = clippy.Arguments(&.{
 
 pub const Commands = clippy.Commands(union(enum) {
     kconv5: Kconv5Arguments,
+    emissivity: EmissivityArguments,
 });
 
 pub fn main() !void {
@@ -87,5 +102,40 @@ pub fn main() !void {
         .kconv5 => |args| {
             _ = args;
         },
+        .emissivity => |args| {
+            var fixed_indices: [4]f64 = .{0} ** 4;
+            var index: usize = 0;
+
+            var token_itt = std.mem.tokenizeScalar(u8, args.indices, ',');
+            while (token_itt.next()) |token| {
+                fixed_indices[index] = try std.fmt.parseFloat(f64, token);
+                index += 1;
+            }
+
+            if (index != 4) {
+                return try clippy.throwError(
+                    error.TooFewIndices,
+                    "At least 4 indices are required to `--indices`. Only {d} were passed",
+                    .{index},
+                );
+            }
+
+            const emiss = emissivity.fixedEmissivity(
+                f64,
+                fixed_indices,
+                args.rcut,
+                args.alpha,
+            );
+
+            var radii = util.RangeIterator(f64).init(std.math.log10(1.0), std.math.log10(1e4), 1000);
+
+            while (radii.next()) |logr| {
+                const r = std.math.pow(f64, 10, logr);
+                const em = emiss.emissivity(r);
+                // _ = em;
+                try writer.print("{d} {d}\n", .{ r, em });
+            }
+        },
     }
+    try writer.flush();
 }
