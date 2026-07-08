@@ -47,6 +47,10 @@ jobs:
         run: zig build xspec -Doptimize=ReleaseFast -Dtarget=${{matrix.target}}
       - name: Move artifact
         run: mv zig-out/lib/libxsklineprofiles.* ./xspec
+      - name: Build CLI
+        run: zig build -Doptimize=ReleaseSafe -Dtarget=${{matrix.target}}
+      - name: Move CLI artifact
+        run: mv zig-out/bin/* ./xspec
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
         with:
