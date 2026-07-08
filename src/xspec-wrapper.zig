@@ -51,9 +51,10 @@ pub fn initEmissivity(
         },
         .fixed_grid => {
             if (N != 4) unreachable;
-            return .initRadii(
+            return emissivity.fixedEmissivity(
+                T,
                 parameters.weights,
-                .{ 6.0, 10.0, 31.62, parameters.rcut },
+                parameters.rcut,
                 parameters.alpha,
             );
         },

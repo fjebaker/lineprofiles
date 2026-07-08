@@ -23,15 +23,21 @@ pub fn LinInterpEmissivity(comptime T: type, comptime N: comptime_int) type {
         coeffs: [N]T,
         alpha: T,
 
-        fn calculateLogCoefficients(coeffs: []T, radii: []const T, powers: []const T, alpha: T) void {
-            // do the edge case
-            coeffs[coeffs.len - 1] = radii[radii.len - 1] * (powers[powers.len - 1] - alpha);
+        fn calculateCoefficients(coeffs: []T, radii: []const T, powers: []const T, alpha: T) void {
+            // Calculate the edge case first, which sets
+            //
+            //     r_n ^ alpha = k_n r_n ^ e_n
+            //
+            // or
+            //
+            //     k_n = r_n ^ (alpha - e_n)
+            //
+            coeffs[coeffs.len - 1] = std.math.pow(T, radii[radii.len - 1], powers[powers.len - 1] - alpha);
 
-            for (0..radii.len - 1) |j| {
-                // run in reverse, i goes form radii.len - 1 to 1
-                const i = radii.len - j - 2;
-                const delta_p = powers[i] - powers[i + 1];
-                coeffs[i] = coeffs[i + 1] + (radii[i] * delta_p);
+            for (2..radii.len + 1) |j| {
+                // Run in reverse, i goes form radii.len - 1 to 0
+                const i = radii.len - j;
+                coeffs[i] = coeffs[i + 1] * std.math.pow(T, radii[i], powers[i] - powers[i + 1]);
             }
         }
 
@@ -43,7 +49,7 @@ pub fn LinInterpEmissivity(comptime T: type, comptime N: comptime_int) type {
             var radii: [N]T = undefined;
             var itt = util.RangeIterator(T).init(std.math.log10(rmin), std.math.log10(rmax), N + 1);
             _ = itt.next();
-            for (&radii) |*r| r.* = itt.next().?;
+            for (&radii) |*r| r.* = std.math.pow(T, 10, itt.next().?);
 
             return .initRadii(powers, radii, alpha);
         }
@@ -52,11 +58,7 @@ pub fn LinInterpEmissivity(comptime T: type, comptime N: comptime_int) type {
             var coeffs: [N]T = undefined;
             var radii_ = radii;
 
-            calculateLogCoefficients(&coeffs, &radii_, &powers, alpha);
-
-            // exponentiate everything back to regular values
-            for (&radii_) |*r| r.* = std.math.pow(T, 10, r.*);
-            for (&coeffs) |*c| c.* = std.math.pow(T, 10, c.*);
+            calculateCoefficients(&coeffs, &radii_, &powers, alpha);
 
             const em: Self = .{
                 .powers = powers,
@@ -106,4 +108,17 @@ test "emissivity interpolations" {
         try std.testing.expectApproxEqAbs(0.011751883, e1, 1e-4);
         try std.testing.expectApproxEqAbs(0.048828106, e2, 1e-4);
     }
+}
+
+pub fn fixedEmissivity(
+    comptime T: type,
+    weights: [4]T,
+    rcut: T,
+    alpha: T,
+) LinInterpEmissivity(T, 4) {
+    return .initRadii(
+        weights,
+        .{ 6.0, 10.0, 31.62, rcut },
+        alpha,
+    );
 }
